@@ -10,7 +10,6 @@ import { getNavLink, getStaticFilePath, filePath } from '../lib/blog-helpers.ts'
 import '../styles/syntax-coloring.css'
 import GoogleAnalytics from '../components/GoogleAnalytics.astro'
 import PostDate from '../components/PostDate.astro'
-import PostTags from '../components/PostTags.astro'
 import PostTitle from '../components/PostTitle.astro'
 import BlogPostsLink from '../components/BlogPostsLink.astro'
 import BlogTagsLink from '../components/BlogTagsLink.astro'
@@ -137,7 +136,7 @@ post.Title = frontmatter.title
           </header>
 
           <PostDate post={post} />
-          <PostTags post={post} />
+          <PostTitle post={post} />
 
           <slot />
 
