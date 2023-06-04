@@ -1,0 +1,57 @@
+---
+import { PUBLIC_GA_TRACKING_ID, ENABLE_LIGHTBOX } from '../server-constants'
+import {
+  getPosts,
+  getRankedPosts,
+  getAllTags,
+  getDatabase,
+} from '../../lib/notion/client'
+import Layout from '../../layouts/Layout.astro'
+import NoContents from '../../components/NoContents.astro'
+import PostDate from '../../components/PostDate.astro'
+import PostTags from '../../components/PostTags.astro'
+import PostTitle from '../../components/PostTitle.astro'
+import PostFeaturedImage from '../../components/PostFeaturedImage.astro'
+import PostExcerpt from '../../components/PostExcerpt.astro'
+import ReadMoreLink from '../../components/ReadMoreLink.astro'
+import Pagination from '../../components/Pagination.astro'
+import BlogPostsLink from '../../components/BlogPostsLink.astro'
+import BlogTagsLink from '../../components/BlogTagsLink.astro'
+import styles from '../../styles/blog.module.css'
+
+const [rankedPosts, tags, recentPosts] = await Promise.all([
+  getRankedPosts(),
+  getAllTags(),
+  getPosts(5),
+])
+
+const siteTitle = "アーカイブ一覧"
+
+const allPosts = await Astro.glob("./*.md");
+const nonDraftPosts = allPosts.filter((post) => !post.frontmatter.draft);
+const sortedPosts = nonDraftPosts.sort((a, b) => {
+  const aDate = new Date(a.frontmatter.date);
+  const bDate = new Date(b.frontmatter.date);
+  return bDate.getTime() - aDate.getTime();
+});
+---
+
+<Layout
+  title={siteTitle}
+>
+  <div slot="main" class={styles.main}>
+    {
+      sortedPosts.map((post) => (
+        <li>
+          <a href={post.url}>{post.frontmatter.title}</a>
+        </li>
+      ))
+    }
+  </div>
+
+  <div slot="aside" class={styles.aside}>
+    <BlogPostsLink heading="おすすめ記事" posts={rankedPosts} />
+    <BlogPostsLink heading="最新記事" posts={recentPosts} />
+    <BlogTagsLink heading="カテゴリー" tags={tags} />
+  </div>
+</Layout>

@@ -24,6 +24,7 @@ import SyncedBlock from './notion-blocks/SyncedBlock.astro'
 import Toggle from './notion-blocks/Toggle.astro'
 import File from './notion-blocks/File.astro'
 import LinkToPage from './notion-blocks/LinkToPage.astro'
+import { log } from 'astro/dist/core/logger/core.js'
 
 export interface Props {
   blocks: interfaces.Block[]
@@ -114,6 +115,13 @@ const bookmarkURLMap = await buildURLToHTMLMap(bookmarkURLs)
   blocks.map((block: interfaces.Block) => {
     switch (block.Type) {
       case 'paragraph':
+        if(typeof block.Paragraph.RichTexts[0] != "undefined"){
+          if(block.Paragraph.RichTexts[0].PlainText.indexOf('data-vc_mylinkbox_id') != -1
+            || block.Paragraph.RichTexts[0].PlainText.indexOf('valuecommerce') != -1
+          ){
+            return <Fragment set:html={block.Paragraph.RichTexts[0].PlainText}/>
+          }
+        }
         return <Paragraph block={block} headings={headings} />
       case 'heading_1':
         return <Heading1 block={block} headings={headings} />
