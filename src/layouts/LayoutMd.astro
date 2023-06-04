@@ -90,6 +90,7 @@ post.Title = frontmatter.title
       integrity="sha384-vKruj+a13U8yHIkAyGgK1J3ArTLzrFGBbBc0tDp4ad/EyewESeXE/Iv67Aj8gKZ0"
       crossorigin="anonymous"
     />
+    <script type="text/javascript" src="//mlb.valuecommerce.com/mylinkbox.js" async></script>
   </head>
   <body>
     <GoogleAnalytics trackingId={PUBLIC_GA_TRACKING_ID} />
@@ -135,10 +136,10 @@ post.Title = frontmatter.title
           </header>
 
           <PostDate post={post} />
-          <PostTitle post={post} />
+          <h3>{post.Title}</h3>
 
           <slot />
-
+          
           <footer>
             <div>
               <span>Powered by</span>
@@ -345,10 +346,13 @@ post.Title = frontmatter.title
 
   a {
     color: var(--accents-1);
-    text-decoration: none;
+    text-decoration: underline;
   }
   a:hover {
     color: var(--accents-1);
+  }
+  p a::before{
+    content:"🔗";
   }
 
   mark {
@@ -467,5 +471,9 @@ post.Title = frontmatter.title
   .content img {
     max-width: 100%; 
     height: auto;
+  }
+
+  div.kaerebalink-box {
+    border: 1px dotted #000000;
   }
 </style>
