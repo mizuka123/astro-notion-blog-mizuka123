@@ -1,6 +1,7 @@
 ---
 import type { SelectProperty } from '../../../../../lib/interfaces.ts'
 import {
+  getPosts,
   getPostsByTagAndPage,
   getRankedPosts,
   getAllTags,
@@ -40,11 +41,12 @@ export async function getStaticPaths() {
 
 const { tag, page } = Astro.params
 
-const [posts, rankedPosts, tags, numberOfPages] = await Promise.all([
+const [posts, rankedPosts, tags, numberOfPages, recentPosts] = await Promise.all([
   getPostsByTagAndPage(tag, parseInt(page, 10)),
   getRankedPosts(),
   getAllTags(),
   getNumberOfPagesByTag(tag),
+  getPosts(5),
 ])
 
 const currentTag = posts[0].Tags.find((t) => t.name === tag)
@@ -89,7 +91,8 @@ const currentTag = posts[0].Tags.find((t) => t.name === tag)
   </div>
 
   <div slot="aside" class={styles.aside}>
-    <BlogPostsLink heading="Recommended" posts={rankedPosts} />
-    <BlogTagsLink heading="Categories" tags={tags} />
+    <BlogPostsLink heading="おすすめ記事" posts={rankedPosts} />
+    <BlogPostsLink heading="最新記事" posts={recentPosts} />
+    <BlogTagsLink heading="カテゴリー" tags={tags} />
   </div>
 </Layout>

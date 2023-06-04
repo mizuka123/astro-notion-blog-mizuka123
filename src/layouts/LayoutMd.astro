@@ -1,6 +1,7 @@
 ---
 import { PUBLIC_GA_TRACKING_ID, ENABLE_LIGHTBOX } from '../server-constants'
 import {
+  getPosts,
   getRankedPosts,
   getAllTags,
   getDatabase,
@@ -15,9 +16,10 @@ import BlogTagsLink from '../components/BlogTagsLink.astro'
 import styles from '../styles/blog.module.css'
 
 const { frontmatter } = Astro.props;
-const [rankedPosts, tags] = await Promise.all([
+const [rankedPosts, tags, recentPosts] = await Promise.all([
   getRankedPosts(),
   getAllTags(),
+  getPosts(5),
 ])
 
 export interface Props {
@@ -66,7 +68,7 @@ post.Title = frontmatter.title
 ---
 
 <!DOCTYPE html>
-<html lang="en" prefix="og: https://ogp.me/ns#">
+<html lang="ja" prefix="og: https://ogp.me/ns#">
   <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="max-image-preview:large" />
@@ -91,6 +93,9 @@ post.Title = frontmatter.title
       crossorigin="anonymous"
     />
     <script type="text/javascript" src="//mlb.valuecommerce.com/mylinkbox.js" async></script>
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8748150415175448"
+    crossorigin="anonymous"></script>
+    <link rel="sitemap" href="/sitemap-index.xml">
   </head>
   <body>
     <GoogleAnalytics trackingId={PUBLIC_GA_TRACKING_ID} />
@@ -153,8 +158,14 @@ post.Title = frontmatter.title
 
       <aside>
         <div class={styles.aside}>
-          <BlogPostsLink heading="Recommended" posts={rankedPosts} />
-          <BlogTagsLink heading="Categories" tags={tags} />
+          <BlogPostsLink heading="おすすめ記事" posts={rankedPosts} />
+          <BlogPostsLink heading="最新記事" posts={recentPosts} />
+          <BlogTagsLink heading="カテゴリー" tags={tags} />
+          <ul>
+          <li><a href="/contact">お問い合わせ</a></li>
+          <li><a href="/posts/privacy">プライバシーポリシー</a></li>
+          <li><a href="/archive">アーカイブ一覧</a></li>
+          </ul>
         </div>
       </aside>
     </div>
@@ -346,13 +357,9 @@ post.Title = frontmatter.title
 
   a {
     color: var(--accents-1);
-    text-decoration: underline;
   }
   a:hover {
     color: var(--accents-1);
-  }
-  p a::before{
-    content:"🔗";
   }
 
   mark {
@@ -473,7 +480,15 @@ post.Title = frontmatter.title
     height: auto;
   }
 
-  div.kaerebalink-box {
-    border: 1px dotted #000000;
+  .content a {
+    text-decoration: underline;
+  }
+
+  .content h1 a {
+    text-decoration: none;
+  }
+
+  aside a {
+    text-decoration: none;
   }
 </style>

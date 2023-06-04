@@ -47,7 +47,7 @@ const asidePaddingTop = coverImageURL ? '200px' : '60px'
 ---
 
 <!DOCTYPE html>
-<html lang="en" prefix="og: https://ogp.me/ns#">
+<html lang="ja" prefix="og: https://ogp.me/ns#">
   <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="max-image-preview:large" />
@@ -72,6 +72,9 @@ const asidePaddingTop = coverImageURL ? '200px' : '60px'
       crossorigin="anonymous"
     />
     <script type="text/javascript" src="//mlb.valuecommerce.com/mylinkbox.js" async></script>
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8748150415175448"
+    crossorigin="anonymous"></script>
+    <link rel="sitemap" href="/sitemap-index.xml">
   </head>
   <body>
     <GoogleAnalytics trackingId={PUBLIC_GA_TRACKING_ID} />
@@ -131,6 +134,11 @@ const asidePaddingTop = coverImageURL ? '200px' : '60px'
 
       <aside>
         <slot name="aside" />
+        <ul>
+        <li><a href="/contact">お問い合わせ</a></li>
+        <li><a href="/posts/privacy">プライバシーポリシー</a></li>
+        <li><a href="/archive">アーカイブ一覧</a></li>
+        </ul>
       </aside>
     </div>
 
