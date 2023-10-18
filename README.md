@@ -1,6 +1,6 @@
 English | [日本語](README.ja.md)
 
-# astro-notion-blog
+# astro-notion-blog-mizuka123
 
 [![GitHub stars](https://img.shields.io/github/stars/otoyo/astro-notion-blog)](https://github.com/otoyo/astro-notion-blog/stargazers)
 [![GitHub license](https://img.shields.io/github/license/otoyo/astro-notion-blog)](https://github.com/otoyo/astro-notion-blog/blob/main/LICENSE)
