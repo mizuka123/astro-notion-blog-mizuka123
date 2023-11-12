@@ -8,6 +8,9 @@ export interface Props {
 
 const { blocks } = Astro.props
 ---
+<div class="post-meta-bottom">
+  <div class="pr-tag">本記事はアフィリエイト・プロモーションを含みます</div>																											
+</div>
 
 <div class="post-body">
   <NotionBlocks blocks={blocks} isRoot={true} />
@@ -16,5 +19,14 @@ const { blocks } = Astro.props
 <style>
   .post-body {
     padding: 0.5rem 0;
+  }
+  .pr-tag {
+    padding: 0.1em 0.8em;
+    border-radius: 10px;
+    font-size: 1em;
+    display: inline-block;
+    margin-right: 10px;
+    vertical-align: middle;
+    border: 1px solid;
   }
 </style>
