@@ -474,34 +474,36 @@ export async function getDatabase(): Promise<Database> {
 
   const dataSource = await _getDataSource(res.data_sources?.[0]?.id || '')
 
+  // アイコンとカバーはデータソースとデータベースの両方に存在しうるため、
+  // データソース側が未設定ならデータベース側にフォールバックする
+  const rawIcon = dataSource.icon || res.icon
+  const rawCover = dataSource.cover || res.cover
+
   let icon: FileObject | Emoji | null = null
-  if (dataSource.icon) {
-    if (dataSource.icon.type === 'emoji' && 'emoji' in dataSource.icon) {
+  if (rawIcon) {
+    if (rawIcon.type === 'emoji' && 'emoji' in rawIcon) {
       icon = {
-        Type: dataSource.icon.type,
-        Emoji: dataSource.icon.emoji,
+        Type: rawIcon.type,
+        Emoji: rawIcon.emoji,
       }
-    } else if (
-      dataSource.icon.type === 'external' &&
-      'external' in dataSource.icon
-    ) {
+    } else if (rawIcon.type === 'external' && 'external' in rawIcon) {
       icon = {
-        Type: dataSource.icon.type,
-        Url: dataSource.icon.external?.url || '',
+        Type: rawIcon.type,
+        Url: rawIcon.external?.url || '',
       }
-    } else if (dataSource.icon.type === 'file' && 'file' in dataSource.icon) {
+    } else if (rawIcon.type === 'file' && 'file' in rawIcon) {
       icon = {
-        Type: dataSource.icon.type,
-        Url: dataSource.icon.file?.url || '',
+        Type: rawIcon.type,
+        Url: rawIcon.file?.url || '',
       }
     }
   }
 
   let cover: FileObject | null = null
-  if (dataSource.cover) {
+  if (rawCover) {
     cover = {
-      Type: dataSource.cover.type,
-      Url: dataSource.cover.external?.url || dataSource.cover?.file?.url || '',
+      Type: rawCover.type,
+      Url: rawCover.external?.url || rawCover?.file?.url || '',
     }
   }
 
