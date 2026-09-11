@@ -1,6 +1,6 @@
-// Query a database response
-// https://developers.notion.com/reference/post-database-query
-export interface QueryDatabaseResponse {
+// Query a data source response
+// https://developers.notion.com/reference/query-a-data-source
+export interface QueryDataSourceResponse {
   object: string
   results: PageObject[]
   next_cursor: null | string
@@ -11,13 +11,15 @@ export interface QueryDatabaseResponse {
 
 // Retrieve a database response
 // https://developers.notion.com/reference/retrieve-a-database
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
-export interface RetrieveDatabaseResponse extends DatabaseObject {}
+export type RetrieveDatabaseResponse = DatabaseObject
+
+// Retrieve a data source response
+// https://developers.notion.com/reference/retrieve-a-data-source
+export type RetrieveDataSourceResponse = DataSourceObject
 
 // Retrieve a block response
 // https://developers.notion.com/reference/retrieve-a-block
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
-export interface RetrieveBlockResponse extends BlockObject {}
+export type RetrieveBlockResponse = BlockObject
 
 // Retrieve block children response
 // https://developers.notion.com/reference/get-block-children
@@ -55,6 +57,25 @@ interface External {
 export interface Emoji {
   type: string
   emoji: string
+}
+
+// Notion 標準アイコン (noticon)
+// API version 2025-09-03 以降、標準アイコンは外部 URL ではなく名前と色で返る
+export interface NoticonIcon {
+  type: string
+  icon: {
+    name: string
+    color: string
+  }
+}
+
+export interface CustomEmojiIcon {
+  type: string
+  custom_emoji: {
+    id: string
+    name: string
+    url: string
+  }
 }
 
 interface Parent {
@@ -130,23 +151,45 @@ interface DatabaseObject {
   created_by: UserObject
   last_edited_time: string
   last_edited_by: UserObject
+  data_sources: DataSourceObject[]
   title: RichTextObject[]
   description: RichTextObject[]
-  icon: FileObject | Emoji | null
+  icon: FileObject | Emoji | NoticonIcon | CustomEmojiIcon | null
   cover: FileObject
-  properties: DatabaseProperties
   parent: Parent
   url: string
-  archived: boolean
+  public_url: string | null
+  in_trash: boolean
   is_inline: boolean
 }
 
-interface DatabaseProperties {
-  [key: string]: DatabaseProperty
+// Data source object
+// https://developers.notion.com/reference/data-source
+export interface DataSourceObject {
+  object: string
+  id: string
+  created_time: string
+  created_by: UserObject
+  last_edited_time: string
+  last_edited_by: UserObject
+  title: RichTextObject[]
+  description: RichTextObject[]
+  icon: FileObject | Emoji | NoticonIcon | CustomEmojiIcon | null
+  cover: FileObject | Emoji | null
+  properties: DataSourceProperties
+  parent: Parent
+  database_parent: Parent
+  in_trash: boolean
 }
 
-interface DatabaseProperty {
+interface DataSourceProperties {
+  [key: string]: DataSourceProperty
+}
+
+interface DataSourceProperty {
   id: string
+  name: string
+  description: string
   type: string
 
   title?: Record<string, never>
@@ -237,7 +280,7 @@ export interface PageObject {
   created_by: UserObject
   last_edited_time: string
   last_edited_by: UserObject
-  archived: boolean
+  in_trash: boolean
   icon: FileObject | Emoji | null
   cover: FileObject
   properties: PageProperties
@@ -319,7 +362,7 @@ export interface BlockObject {
   created_by: UserObject
   last_edited_by: UserObject
   has_children: boolean
-  archived: boolean
+  in_trash: boolean
   type: string
 
   paragraph?: Paragraph

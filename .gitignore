@@ -1,6 +1,8 @@
 # build output
 dist/
 .output/
+.astro/
+.nx/
 
 # dependencies
 node_modules/
@@ -19,7 +21,6 @@ pnpm-debug.log*
 # macOS-specific files
 .DS_Store
 
-.node-version
 
 tmp/
 !tmp/.gitkeep
