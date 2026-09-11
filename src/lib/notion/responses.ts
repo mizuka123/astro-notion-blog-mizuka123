@@ -59,6 +59,25 @@ export interface Emoji {
   emoji: string
 }
 
+// Notion 標準アイコン (noticon)
+// API version 2025-09-03 以降、標準アイコンは外部 URL ではなく名前と色で返る
+export interface NoticonIcon {
+  type: string
+  icon: {
+    name: string
+    color: string
+  }
+}
+
+export interface CustomEmojiIcon {
+  type: string
+  custom_emoji: {
+    id: string
+    name: string
+    url: string
+  }
+}
+
 interface Parent {
   type: string
   database_id?: string
@@ -135,7 +154,7 @@ interface DatabaseObject {
   data_sources: DataSourceObject[]
   title: RichTextObject[]
   description: RichTextObject[]
-  icon: FileObject | Emoji | null
+  icon: FileObject | Emoji | NoticonIcon | CustomEmojiIcon | null
   cover: FileObject
   parent: Parent
   url: string
@@ -155,7 +174,7 @@ export interface DataSourceObject {
   last_edited_by: UserObject
   title: RichTextObject[]
   description: RichTextObject[]
-  icon: FileObject | Emoji | null
+  icon: FileObject | Emoji | NoticonIcon | CustomEmojiIcon | null
   cover: FileObject | Emoji | null
   properties: DataSourceProperties
   parent: Parent

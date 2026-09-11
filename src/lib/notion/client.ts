@@ -496,6 +496,18 @@ export async function getDatabase(): Promise<Database> {
         Type: rawIcon.type,
         Url: rawIcon.file?.url || '',
       }
+    } else if (rawIcon.type === 'icon' && 'icon' in rawIcon) {
+      // Notion 標準アイコンは名前と色で返るため、画像 URL を組み立てて
+      // external として扱う (例: camera + gray -> camera_gray.svg)
+      icon = {
+        Type: 'external',
+        Url: `https://www.notion.so/icons/${rawIcon.icon.name}_${rawIcon.icon.color}.svg`,
+      }
+    } else if (rawIcon.type === 'custom_emoji' && 'custom_emoji' in rawIcon) {
+      icon = {
+        Type: 'external',
+        Url: rawIcon.custom_emoji.url || '',
+      }
     }
   }
 
