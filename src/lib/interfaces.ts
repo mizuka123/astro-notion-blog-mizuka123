@@ -219,7 +219,8 @@ export interface RichText {
   Text?: Text
   Annotation: Annotation
   PlainText: string
-  Href?: string
+  // SDK / API は値が無いとき null を返す（undefined ではない）
+  Href?: string | null
   Equation?: Equation
   Mention?: Mention
 }

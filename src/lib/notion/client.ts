@@ -64,6 +64,7 @@ import type {
   GetDataSourceParameters,
   ListBlockChildrenParameters,
   QueryDataSourceParameters,
+  RichTextItemResponse,
 } from '@notionhq/client'
 // レスポンス側は手書きの型のまま。SDK の実際の戻り値は partial を含む union だが、
 // responses.ts は full のみをモデル化している。ブロックについては
@@ -1274,7 +1275,7 @@ function _buildPost(pageObject: responses.PageObject): Post {
   return post
 }
 
-function _buildRichText(richTextObject: responses.RichTextObject): RichText {
+function _buildRichText(richTextObject: RichTextItemResponse): RichText {
   const annotation: Annotation = {
     Bold: richTextObject.annotations.bold,
     Italic: richTextObject.annotations.italic,
