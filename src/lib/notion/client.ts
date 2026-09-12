@@ -1,4 +1,9 @@
-import { APIResponseError, Client, isFullBlock } from '@notionhq/client'
+import {
+  APIResponseError,
+  Client,
+  isFullBlock,
+  isFullPage,
+} from '@notionhq/client'
 import retry from 'async-retry'
 import ExifTransformer from 'exif-be-gone'
 import fs, { createWriteStream } from 'node:fs'
@@ -65,7 +70,9 @@ import type {
   GetDataSourceParameters,
   ListBlockChildrenParameters,
   ListBlockChildrenResponse,
+  PageObjectResponse,
   QueryDataSourceParameters,
+  QueryDataSourceResponse,
   RichTextItemResponse,
 } from '@notionhq/client'
 // responses.ts は SDK 型への置き換えを段階的に進めている途中。
@@ -136,14 +143,12 @@ export async function getAllPosts(): Promise<Post[]> {
     page_size: 100,
   }
 
-  let results: responses.PageObject[] = []
+  let results: QueryDataSourceResponse['results'] = []
   while (true) {
     const res = await retry(
       async (bail) => {
         try {
-          return (await client.dataSources.query(
-            params
-          )) as responses.QueryDataSourceResponse
+          return await client.dataSources.query(params)
         } catch (error: unknown) {
           if (error instanceof APIResponseError) {
             if (error.status && error.status >= 400 && error.status < 500) {
@@ -1195,28 +1200,57 @@ async function _getSyncedBlockChildren(block: Block): Promise<Block[]> {
   return children
 }
 
-function _validPageObject(pageObject: responses.PageObject): boolean {
-  const prop = pageObject.properties
+/**
+ * ページのプロパティを名前と型で取り出す。
+ *
+ * SDK の properties は `Record<string, PagePropertyValueWithIdResponse>` で、
+ * 値は全プロパティ型の判別可能 union。名前で引いただけでは union のままなので、
+ * 期待する型で絞り込んでから返す。
+ *
+ * 期待と違う型だった場合や存在しない場合は null を返す。手書き型の時代は
+ * prop.Page.title のように無条件に参照しており、Notion 側でプロパティを
+ * 消したり型を変えたりすると page_id も分からない TypeError でビルドが
+ * 落ちていた。
+ */
+type PageProperty = PageObjectResponse['properties'][string]
 
-  if (!prop) {
-    // dataSources.query の results には、統合がそのページを読めない場合に
-    // id だけの partial なページが混ざる（properties が無い）。
-    // responses.ts は full のみをモデル化しているため型では検出できず、
-    // 素通りすると次の行で page_id も原因も分からない TypeError になる
+function _pageProp<T extends PageProperty['type']>(
+  properties: PageObjectResponse['properties'],
+  name: string,
+  type: T
+): Extract<PageProperty, { type: T }> | null {
+  const prop = properties[name]
+  if (!prop || prop.type !== type) {
+    return null
+  }
+  return prop as Extract<PageProperty, { type: T }>
+}
+
+function _validPageObject(
+  pageObject: QueryDataSourceResponse['results'][number]
+): pageObject is PageObjectResponse {
+  // dataSources.query の results には、統合がそのページを読めない場合に
+  // id だけの partial なページが混ざる（properties が無い）。
+  // data_source のオブジェクトが混ざることも型の上ではありうる
+  if (!isFullPage(pageObject)) {
     console.error(
       `Skipped a page that could not be read. Check the integration's access to it in Notion. page_id: ${pageObject.id}`
     )
     return false
   }
 
+  const properties = pageObject.properties
   const missing: string[] = []
-  if (!prop.Page.title || prop.Page.title.length === 0) {
+
+  const page = _pageProp(properties, 'Page', 'title')
+  if (!page || page.title.length === 0) {
     missing.push('Page')
   }
-  if (!prop.Slug.rich_text || prop.Slug.rich_text.length === 0) {
+  const slug = _pageProp(properties, 'Slug', 'rich_text')
+  if (!slug || slug.rich_text.length === 0) {
     missing.push('Slug')
   }
-  if (!prop.Date.date) {
+  if (!_pageProp(properties, 'Date', 'date')?.date) {
     missing.push('Date')
   }
 
@@ -1234,46 +1268,56 @@ function _validPageObject(pageObject: responses.PageObject): boolean {
   return true
 }
 
-function _buildPost(pageObject: responses.PageObject): Post {
-  const prop = pageObject.properties
+function _buildPost(pageObject: PageObjectResponse): Post {
+  const properties = pageObject.properties
 
   const icon = _buildIcon(pageObject.icon)
   const cover = _buildCover(pageObject.cover)
 
+  const featuredImageProp = _pageProp(properties, 'FeaturedImage', 'files')
+  const featuredFile = featuredImageProp?.files[0]
   let featuredImage: FileObject | null = null
-  if (prop.FeaturedImage.files && prop.FeaturedImage.files.length > 0) {
-    if (prop.FeaturedImage.files[0].external) {
+  if (featuredFile) {
+    // SDK の files の要素は external / file の判別可能 union なので type で分ける
+    if (featuredFile.type === 'external') {
       featuredImage = {
-        Type: prop.FeaturedImage.type,
-        Url: prop.FeaturedImage.files[0].external.url,
+        Type: featuredImageProp.type,
+        Url: featuredFile.external.url,
       }
-    } else if (prop.FeaturedImage.files[0].file) {
+    } else if (featuredFile.type === 'file') {
       featuredImage = {
-        Type: prop.FeaturedImage.type,
-        Url: prop.FeaturedImage.files[0].file.url,
-        ExpiryTime: prop.FeaturedImage.files[0].file.expiry_time,
+        Type: featuredImageProp.type,
+        Url: featuredFile.file.url,
+        ExpiryTime: featuredFile.file.expiry_time,
       }
     }
   }
 
+  const page = _pageProp(properties, 'Page', 'title')
+  const slug = _pageProp(properties, 'Slug', 'rich_text')
+  const date = _pageProp(properties, 'Date', 'date')
+  const tags = _pageProp(properties, 'Tags', 'multi_select')
+  const excerpt = _pageProp(properties, 'Excerpt', 'rich_text')
+  const rank = _pageProp(properties, 'Rank', 'number')
+
   const post: Post = {
     PageId: pageObject.id,
-    Title: prop.Page.title
-      ? prop.Page.title.map((richText) => richText.plain_text).join('')
+    Title: page
+      ? page.title.map((richText) => richText.plain_text).join('')
       : '',
     Icon: icon,
     Cover: cover,
-    Slug: prop.Slug.rich_text
-      ? prop.Slug.rich_text.map((richText) => richText.plain_text).join('')
+    Slug: slug
+      ? slug.rich_text.map((richText) => richText.plain_text).join('')
       : '',
-    Date: prop.Date.date ? prop.Date.date.start : '',
-    Tags: prop.Tags.multi_select ? prop.Tags.multi_select : [],
+    Date: date?.date ? date.date.start : '',
+    Tags: tags ? tags.multi_select : [],
     Excerpt:
-      prop.Excerpt.rich_text && prop.Excerpt.rich_text.length > 0
-        ? prop.Excerpt.rich_text.map((richText) => richText.plain_text).join('')
+      excerpt && excerpt.rich_text.length > 0
+        ? excerpt.rich_text.map((richText) => richText.plain_text).join('')
         : '',
     FeaturedImage: featuredImage,
-    Rank: prop.Rank.number ? prop.Rank.number : 0,
+    Rank: rank?.number ? rank.number : 0,
   }
 
   return post

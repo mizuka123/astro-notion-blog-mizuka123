@@ -1,16 +1,5 @@
 import type { RichTextItemResponse } from '@notionhq/client'
 
-// Query a data source response
-// https://developers.notion.com/reference/query-a-data-source
-export interface QueryDataSourceResponse {
-  object: string
-  results: PageObject[]
-  next_cursor: null | string
-  has_more: boolean
-  type: string
-  page?: Record<string, never>
-}
-
 // Retrieve a database response
 // https://developers.notion.com/reference/retrieve-a-database
 export type RetrieveDatabaseResponse = DatabaseObject
@@ -75,12 +64,6 @@ interface Parent {
 // だったが、実際の API と SDK は `string | null` を返しており乖離していた。
 // これに伴い Annotations / Text / Link / Mention / Reference は不要になったため削除。
 export type RichTextObject = RichTextItemResponse
-
-interface DateProperty {
-  start: string
-  end?: null | string
-  timezone?: null | string
-}
 
 // Database object
 // https://developers.notion.com/reference/database
@@ -209,87 +192,4 @@ interface RollupConfiguration {
   rollup_property_name: string
   rollup_property_id: string
   function: string
-}
-
-// Page object
-// https://developers.notion.com/reference/page
-export interface PageObject {
-  object: string
-  id: string
-  created_time: string
-  created_by: UserObject
-  last_edited_time: string
-  last_edited_by: UserObject
-  in_trash: boolean
-  // データベース側と同じく noticon / custom_emoji も返りうる
-  icon: FileObject | Emoji | NoticonIcon | CustomEmojiIcon | null
-  cover: FileObject
-  properties: PageProperties
-  parent: Parent
-  url: string
-}
-
-interface PageProperties {
-  [key: string]: PageProperty
-}
-
-interface PageProperty {
-  id: string
-  type: string
-
-  title?: RichTextObject[]
-  rich_text?: RichTextObject[]
-  number?: number
-  select?: SelectProperty
-  status?: StatusProperty
-  multi_select?: SelectProperty[]
-  date?: DateProperty
-  formula?: FormulaProperty
-  relation?: RelationProperty[]
-  rollup?: RollupProperty
-  people?: UserObject[]
-  files?: FileObject[]
-  checkbox?: boolean
-  url?: string
-  email?: string
-  phone_number?: string
-  created_time?: string
-  created_by?: UserObject
-  last_edited_time?: string
-  last_edited_by?: UserObject
-}
-
-interface SelectProperty {
-  id: string
-  name: string
-  color: string
-}
-
-interface StatusProperty {
-  id: string
-  name: string
-  color: string
-}
-
-interface FormulaProperty {
-  type: string
-
-  number?: number
-  string?: string
-  boolean?: boolean
-  date?: DateProperty
-}
-
-interface RelationProperty {
-  id: string
-}
-
-interface RollupProperty {
-  type: string
-  function: string
-
-  number?: number
-  string?: string
-  date?: DateProperty
-  results?: string[]
 }
