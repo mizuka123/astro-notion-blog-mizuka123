@@ -66,11 +66,12 @@ import type {
   QueryDataSourceParameters,
   RichTextItemResponse,
 } from '@notionhq/client'
-// レスポンス側は手書きの型のまま。SDK の実際の戻り値は partial を含む union だが、
-// responses.ts は full のみをモデル化している。ブロックについては
-// _warnUnreadableBlocks / _filterReadableBlocks と getBlock の実行時チェックで
-// 実害を塞いであるが、型の上では依然 partial を表現できていない。
-// responses.ts を SDK 由来の型に置き換えて型ガードで扱うのは別途対応する
+// responses.ts は SDK 型への置き換えを段階的に進めている途中。
+// rich text は SDK の RichTextItemResponse に置き換え済み。
+// ブロック・ページ・データベースのレスポンス型はまだ手書きで、SDK の実際の
+// 戻り値が partial を含む union であることを型の上では表現できていない
+// （実害は _warnUnreadableBlocks / _filterReadableBlocks / getBlock /
+// _validPageObject の実行時チェックで塞いである）。順に置き換えていく
 import type * as responses from './responses'
 
 const client = new Client({
