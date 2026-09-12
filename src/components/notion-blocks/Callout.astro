@@ -10,16 +10,25 @@ export interface Props {
 }
 
 const { block, headings } = Astro.props
+
+// Unsupported は truthy なので、テンプレート側で truthy 判定と type 判定を
+// 分けて書くと、中身が空の div.icon だけが描画されて margin-right 分の余白が
+// ずれる。他のコンポーネントは両者が一体化していてこの穴が無い。
+// ここでは描画しうるものだけに絞ってから渡す
+const icon =
+  block.Callout?.Icon && block.Callout.Icon.Type !== 'unsupported'
+    ? block.Callout.Icon
+    : null
 ---
 
 <div class={`callout ${snakeToKebab(block.Callout.Color)}`}>
   {
-    block.Callout.Icon && (
+    icon && (
       <div class="icon">
-        {block.Callout.Icon.Type === 'emoji' ? (
-          block.Callout.Icon.Emoji
-        ) : block.Callout.Icon.Type === 'external' ? (
-          <img src={block.Callout.Icon.Url} alt="Icon in a callout block" />
+        {icon.Type === 'emoji' ? (
+          icon.Emoji
+        ) : icon.Type === 'external' ? (
+          <img src={icon.Url} alt="Icon in a callout block" />
         ) : null}
       </div>
     )
