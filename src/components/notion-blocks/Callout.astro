@@ -24,7 +24,7 @@ const icon =
 // file タイプ（署名付き URL が失効する）はローカルパスに差し替わる。
 // URL が壊れていて差し替えられなかった場合も <img> を出せないので、
 // 上と同じ理由（空の div.icon を描かない）で描画対象から外す
-const iconImageURL = getIconImageURL(icon)
+const iconImageURL = getIconImageURL(icon, `block_id: ${block.Id}`)
 const hasVisibleIcon = icon?.Type === 'emoji' || !!iconImageURL
 ---
 

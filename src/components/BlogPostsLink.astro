@@ -14,7 +14,10 @@ const { heading, posts } = Astro.props
 // （テンプレート内で分岐と src の 2 箇所から参照するため）。
 // file タイプ（署名付き URL が失効する）はローカルパスに差し替わる
 const iconImageURLs = new Map<string, string | undefined>(
-  posts.map((post: Post) => [post.PageId, getIconImageURL(post.Icon)])
+  posts.map((post: Post) => [
+    post.PageId,
+    getIconImageURL(post.Icon, `page_id: ${post.PageId}`),
+  ])
 )
 ---
 

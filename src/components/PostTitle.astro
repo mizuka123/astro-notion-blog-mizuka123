@@ -14,7 +14,7 @@ let title = post.Title
 
 // enableLink の true/false で同じ分岐を 2 回書くので、ここで一度だけ求める。
 // file タイプ（署名付き URL が失効する）はローカルパスに差し替わる
-const iconImageURL = getIconImageURL(post.Icon)
+const iconImageURL = getIconImageURL(post.Icon, `page_id: ${post.PageId}`)
 ---
 
 <h2 class="post-title">

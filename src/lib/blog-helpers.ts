@@ -67,9 +67,14 @@ export const getDatabaseImageURLs = (
  * emoji はテキストとして描画するもので <img> では出せない。unsupported と
  * 未設定も含め、そういうものは undefined を返して呼び出し側のフォールバック
  * （絵文字やタイトルのみの表示）に倒せるようにしている。
+ *
+ * context には呼び出し元の識別子（page_id / block_id）を渡す。アイコンは
+ * 記事や callout の数だけあるので、どれが壊れているか分からないログでは
+ * 追いようがない。client.ts の他のログと同じ方針。
  */
 export const getIconImageURL = (
-  icon: FileObject | Emoji | Unsupported | null
+  icon: FileObject | Emoji | Unsupported | null,
+  context: string
 ): string | undefined => {
   if (!icon) {
     return undefined
@@ -84,8 +89,12 @@ export const getIconImageURL = (
       return filePath(new URL(icon.Url))
     } catch {
       // URL が壊れているとローカルパスを導出できない。握り潰すと
-      // 「アイコンだけ出ない」原因が追えなくなるのでログには残す
-      console.error('Invalid icon URL: ', icon.Url)
+      // 「アイコンだけ出ない」原因が追えなくなるのでログには残す。
+      // 署名付き URL はクエリに署名を含み、ビルドログは保存されるので
+      // クエリは落とす（client.ts の displayUrl と同じ理由）
+      console.error(
+        `Invalid icon URL. The icon will not be rendered. url: ${icon.Url.split('?')[0]}, ${context}`
+      )
       return undefined
     }
   }
