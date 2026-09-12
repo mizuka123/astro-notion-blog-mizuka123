@@ -22,9 +22,12 @@ import BlogPostsLink from '../components/BlogPostsLink.astro'
 import BlogTagsLink from '../components/BlogTagsLink.astro'
 import styles from '../styles/blog.module.css'
 
-// src/pages/archive/*.md の frontmatter。全 609 件が title と date を持ち、
-// coverImage は一部のみ（PR #30 の ArchiveFrontmatter と同じ形）
-interface ArchiveFrontmatter {
+// src/pages/archive/*.md の frontmatter のうち、このレイアウトが読むものだけ。
+// 全 609 件が title と date を持ち、coverImage は 538 件のみ。
+// NOTE: archive/index.astro にも同じ md 群を対象にした別の型宣言があるが、
+// あちらが読むのは title / date / draft で、こちらとは中身が違う。
+// 名前が衝突しないよう別名にしてある
+interface ArchiveLayoutFrontmatter {
   title: string
   date: string
   coverImage?: string
@@ -32,7 +35,7 @@ interface ArchiveFrontmatter {
 
 // Markdown レイアウトなので frontmatter / file / url などは Astro が渡す。
 // title 等 4 つは分割代入側で frontmatter からデフォルト値を与えている
-export type Props = MarkdownLayoutProps<ArchiveFrontmatter> & {
+export type Props = MarkdownLayoutProps<ArchiveLayoutFrontmatter> & {
   title?: string
   description?: string
   path?: string
