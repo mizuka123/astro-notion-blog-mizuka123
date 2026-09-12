@@ -38,7 +38,7 @@ interface UserObject {
   id: string
 }
 
-interface FileObject {
+export interface FileObject {
   type: string
   name?: string
   external?: External
@@ -281,7 +281,8 @@ export interface PageObject {
   last_edited_time: string
   last_edited_by: UserObject
   in_trash: boolean
-  icon: FileObject | Emoji | null
+  // データベース側と同じく noticon / custom_emoji も返りうる
+  icon: FileObject | Emoji | NoticonIcon | CustomEmojiIcon | null
   cover: FileObject
   properties: PageProperties
   parent: Parent
@@ -412,7 +413,7 @@ interface Heading {
 
 interface Callout {
   rich_text: RichTextObject[]
-  icon: FileObject | Emoji
+  icon: FileObject | Emoji | NoticonIcon | CustomEmojiIcon
   color: string
   children?: BlockObject[]
 }
