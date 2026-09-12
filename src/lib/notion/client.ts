@@ -1,4 +1,4 @@
-import { APIResponseError, Client } from '@notionhq/client'
+import { APIResponseError, Client, isFullBlock } from '@notionhq/client'
 import retry from 'async-retry'
 import ExifTransformer from 'exif-be-gone'
 import fs, { createWriteStream } from 'node:fs'
@@ -59,10 +59,12 @@ import type {
 // この import 周りの衝突が起きる。その際はファイルを復活させるのではなく、
 // 追加されたフィールドを対応する SDK の型の使い方に読み替えること。
 import type {
+  BlockObjectResponse,
   GetBlockParameters,
   GetDatabaseParameters,
   GetDataSourceParameters,
   ListBlockChildrenParameters,
+  ListBlockChildrenResponse,
   QueryDataSourceParameters,
   RichTextItemResponse,
 } from '@notionhq/client'
@@ -267,7 +269,7 @@ export async function getNumberOfPagesByTag(tagName: string): Promise<number> {
 }
 
 export async function getAllBlocksByBlockId(blockId: string): Promise<Block[]> {
-  let results: responses.BlockObject[] = []
+  let results: ListBlockChildrenResponse['results'] = []
 
   if (fs.existsSync(`tmp/${blockId}.json`)) {
     results = JSON.parse(fs.readFileSync(`tmp/${blockId}.json`, 'utf-8'))
@@ -280,9 +282,7 @@ export async function getAllBlocksByBlockId(blockId: string): Promise<Block[]> {
       const res = await retry(
         async (bail) => {
           try {
-            return (await client.blocks.children.list(
-              params
-            )) as responses.RetrieveBlockChildrenResponse
+            return await client.blocks.children.list(params)
           } catch (error: unknown) {
             if (error instanceof APIResponseError) {
               if (error.status && error.status >= 400 && error.status < 500) {
@@ -378,9 +378,7 @@ export async function getBlock(blockId: string): Promise<Block> {
   const res = await retry(
     async (bail) => {
       try {
-        return (await client.blocks.retrieve(
-          params
-        )) as responses.RetrieveBlockResponse
+        return await client.blocks.retrieve(params)
       } catch (error: unknown) {
         if (error instanceof APIResponseError) {
           if (error.status && error.status >= 400 && error.status < 500) {
@@ -395,7 +393,7 @@ export async function getBlock(blockId: string): Promise<Block> {
     }
   )
 
-  if (!res.type) {
+  if (!isFullBlock(res)) {
     // 一覧取得と違い、ここは呼び出し側が「このブロックが読める」前提で
     // 期限切れの署名付き URL を取り直すために呼ぶ。黙って空の Block を返すと
     // posts/[slug].astro で block.Image も block.File も undefined になり、
@@ -756,10 +754,10 @@ function _buildCover(
 
 function _warnUnreadableBlocks(
   parentBlockId: string,
-  blockObjects: responses.BlockObject[]
+  blockObjects: ListBlockChildrenResponse['results']
 ): void {
   blockObjects.forEach((blockObject) => {
-    if (!blockObject.type) {
+    if (!isFullBlock(blockObject)) {
       console.error(
         `A block could not be read. Check the integration's access to it in Notion. block_id: ${blockObject.id}, parent_block_id: ${parentBlockId}`
       )
@@ -769,13 +767,13 @@ function _warnUnreadableBlocks(
 
 function _filterReadableBlocks(
   parentBlockId: string,
-  blockObjects: responses.BlockObject[]
-): responses.BlockObject[] {
+  blockObjects: ListBlockChildrenResponse['results']
+): BlockObjectResponse[] {
   _warnUnreadableBlocks(parentBlockId, blockObjects)
-  return blockObjects.filter((blockObject) => !!blockObject.type)
+  return blockObjects.filter(isFullBlock)
 }
 
-function _buildBlock(blockObject: responses.BlockObject): Block {
+function _buildBlock(blockObject: BlockObjectResponse): Block {
   const block: Block = {
     Id: blockObject.id,
     Type: blockObject.type,
@@ -1027,7 +1025,9 @@ function _buildBlock(blockObject: responses.BlockObject): Block {
       }
       break
     case 'link_to_page':
-      if (blockObject.link_to_page && blockObject.link_to_page.page_id) {
+      // SDK のペイロードは page_id / database_id / comment_id の判別可能 union。
+      // page_id を持つのは type === 'page_id' のときだけ
+      if (blockObject.link_to_page.type === 'page_id') {
         const linkToPage: LinkToPage = {
           Type: blockObject.link_to_page.type,
           PageId: blockObject.link_to_page.page_id,
@@ -1041,7 +1041,7 @@ function _buildBlock(blockObject: responses.BlockObject): Block {
 }
 
 async function _getTableRows(blockId: string): Promise<TableRow[]> {
-  let results: responses.BlockObject[] = []
+  let results: ListBlockChildrenResponse['results'] = []
 
   if (fs.existsSync(`tmp/${blockId}.json`)) {
     results = JSON.parse(fs.readFileSync(`tmp/${blockId}.json`, 'utf-8'))
@@ -1054,9 +1054,7 @@ async function _getTableRows(blockId: string): Promise<TableRow[]> {
       const res = await retry(
         async (bail) => {
           try {
-            return (await client.blocks.children.list(
-              params
-            )) as responses.RetrieveBlockChildrenResponse
+            return await client.blocks.children.list(params)
           } catch (error: unknown) {
             if (error instanceof APIResponseError) {
               if (error.status && error.status >= 400 && error.status < 500) {
@@ -1087,6 +1085,13 @@ async function _getTableRows(blockId: string): Promise<TableRow[]> {
   _warnUnreadableBlocks(blockId, results)
 
   return results.map((blockObject) => {
+    if (!isFullBlock(blockObject)) {
+      // 読めない行も位置を保つため空行として残す（警告は上で出している）。
+      // Type / HasChildren はリポジトリのどこからも読まれていないため、
+      // 従来 undefined が入っていたのを型どおりの値にしても描画は変わらない
+      return { Id: blockObject.id, Type: '', HasChildren: false, Cells: [] }
+    }
+
     const tableRow: TableRow = {
       Id: blockObject.id,
       Type: blockObject.type,
@@ -1111,7 +1116,7 @@ async function _getTableRows(blockId: string): Promise<TableRow[]> {
 }
 
 async function _getColumns(blockId: string): Promise<Column[]> {
-  let results: responses.BlockObject[] = []
+  let results: ListBlockChildrenResponse['results'] = []
 
   if (fs.existsSync(`tmp/${blockId}.json`)) {
     results = JSON.parse(fs.readFileSync(`tmp/${blockId}.json`, 'utf-8'))
@@ -1124,9 +1129,7 @@ async function _getColumns(blockId: string): Promise<Column[]> {
       const res = await retry(
         async (bail) => {
           try {
-            return (await client.blocks.children.list(
-              params
-            )) as responses.RetrieveBlockChildrenResponse
+            return await client.blocks.children.list(params)
           } catch (error: unknown) {
             if (error instanceof APIResponseError) {
               if (error.status && error.status >= 400 && error.status < 500) {
