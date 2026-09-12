@@ -42,12 +42,15 @@ export default (): AstroIntegration => ({
         .filter((url): url is string => !!url)
 
       const calloutIconURLs: string[] = []
+      let calloutCount = 0
       for (const post of posts) {
         const blocks = await getAllBlocksByBlockId(post.PageId)
         // extractTargetBlocks は Children を持つブロック（段落・見出し・
         // リスト・トグル・引用・callout・同期ブロック・カラム）を再帰的に
         // 辿るので、ネストした callout も漏れなく拾える
-        extractTargetBlocks('callout', blocks).forEach((block) => {
+        const callouts = extractTargetBlocks('callout', blocks)
+        calloutCount += callouts.length
+        callouts.forEach((block) => {
           const url = fileIconURL(block.Callout?.Icon)
           if (url) {
             calloutIconURLs.push(url)
@@ -58,9 +61,12 @@ export default (): AstroIntegration => ({
       // Notion 側に file タイプのアイコンが実在するかどうかは、認証情報のある
       // ビルド環境のログでしか確認できない。0 件でも必ず出して、
       // 「対応したのに何も起きていない」のか「そもそも存在しない」のかを
-      // 切り分けられるようにする
+      // 切り分けられるようにする。
+      // 走査した母数も出すのは、0 件が「アイコンが無い」のか
+      // 「そもそも走査できていない」のかを区別できないと意味が無いため
       console.log(
-        `[file-icon-downloader] file タイプのアイコン: 記事 ${postIconURLs.length} 件 / callout ${calloutIconURLs.length} 件`
+        `[file-icon-downloader] 走査: 記事 ${posts.length} 件 / callout ${calloutCount} 件。` +
+          `うち file タイプのアイコン: 記事 ${postIconURLs.length} 件 / callout ${calloutIconURLs.length} 件`
       )
 
       const urls = [...postIconURLs, ...calloutIconURLs]
