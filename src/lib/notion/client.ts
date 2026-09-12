@@ -394,6 +394,12 @@ export async function getAllTags(): Promise<SelectProperty[]> {
     )
 }
 
+/**
+ * Notion の署名付き URL はクエリ文字列に署名を含み、ビルドログは保存されるため、
+ * ログやエラーメッセージにはクエリを落としたものを使う。
+ */
+const displayUrl = (url: URL): string => `${url.origin}${url.pathname}`
+
 export async function downloadFile(url: URL) {
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
@@ -413,7 +419,7 @@ export async function downloadFile(url: URL) {
       throw new Error('Response body is null')
     }
   } catch (err) {
-    throw new Error(`Failed to fetch ${url.toString()}`, { cause: err })
+    throw new Error(`Failed to fetch ${displayUrl(url)}`, { cause: err })
   } finally {
     // fetch が失敗した場合も必ずタイマーを解放する
     clearTimeout(timeoutId)
@@ -440,10 +446,10 @@ export async function downloadFile(url: URL) {
     // pipeline は Promise を返すため await しないと書き込み時のエラーを捕捉できない
     await pipeline(stream, new ExifTransformer(), writeStream)
   } catch (err) {
-    // 途中まで書かれた壊れたファイルが残ると、次回以降のビルドで
-    // ダウンロード済みとして扱われてしまうため削除する
+    // 途中まで書かれたファイルは public/notion に残り続け、後続のビルドで
+    // public-notion-copier がそのまま dist にコピーしてしまうため削除する
     fs.rmSync(filepath, { force: true })
-    throw new Error(`Failed to write ${filepath} from ${url.toString()}`, {
+    throw new Error(`Failed to write ${filepath} from ${displayUrl(url)}`, {
       cause: err,
     })
   }
@@ -462,30 +468,43 @@ export async function downloadFiles(
 ): Promise<void> {
   const urls: URL[] = []
   const failures: string[] = []
+  // 同じファイルを指す URL が複数含まれていると、同一パスへ並行に書き込んで
+  // ファイルが壊れる（失敗側の後始末が成功側の書き込みを消すこともある）。
+  // 保存先パスは pathname の末尾 2 要素だけで決まるので、それをキーに重複を除く
+  const seenPaths = new Set<string>()
 
   rawUrls.forEach((rawUrl) => {
+    let url!: URL
     try {
-      urls.push(new URL(rawUrl))
+      url = new URL(rawUrl)
     } catch (err) {
       console.error(`[${label}] invalid URL: ${rawUrl}`)
       console.error(err)
       failures.push(`${rawUrl} (invalid URL)`)
+      return
     }
+
+    const destPath = url.pathname.split('/').slice(-2).join('/')
+    if (seenPaths.has(destPath)) {
+      return
+    }
+    seenPaths.add(destPath)
+    urls.push(url)
   })
 
   const results = await Promise.allSettled(urls.map((url) => downloadFile(url)))
 
   results.forEach((result, i) => {
     if (result.status === 'rejected') {
-      console.error(`[${label}] download failed: ${urls[i].toString()}`)
+      console.error(`[${label}] download failed: ${displayUrl(urls[i])}`)
       console.error(result.reason)
-      failures.push(urls[i].toString())
+      failures.push(displayUrl(urls[i]))
     }
   })
 
   if (failures.length > 0) {
     throw new Error(
-      `[${label}] ${failures.length}/${rawUrls.length} files failed to download:\n` +
+      `[${label}] ${failures.length} of ${rawUrls.length} files failed to download:\n` +
         failures.map((failure) => `  - ${failure}`).join('\n')
     )
   }
