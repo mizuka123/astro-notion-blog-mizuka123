@@ -1,3 +1,5 @@
+import type { RichTextItemResponse } from '@notionhq/client'
+
 // Query a data source response
 // https://developers.notion.com/reference/query-a-data-source
 export interface QueryDataSourceResponse {
@@ -84,49 +86,10 @@ interface Parent {
   page_id?: string
 }
 
-export interface RichTextObject {
-  type: string
-  plain_text: string
-  annotations: Annotations
-  href?: string
-
-  text?: Text
-  mention?: Mention
-  equation?: Equation
-}
-
-interface Annotations {
-  bold: boolean
-  italic: boolean
-  strikethrough: boolean
-  underline: boolean
-  code: boolean
-  color: string
-}
-
-interface Text {
-  content: string
-  link?: Link
-}
-
-interface Link {
-  type: string
-  url: string
-}
-
-interface Mention {
-  type: string
-
-  user?: UserObject
-  page?: Reference
-  database?: Reference
-  date?: DateProperty
-  link_preview?: LinkPreview
-}
-
-interface Reference {
-  id: string
-}
+// SDK の型をそのまま使う。手書きの RichTextObject は href が `string | undefined`
+// だったが、実際の API と SDK は `string | null` を返しており乖離していた。
+// これに伴い Annotations / Text / Link / Mention / Reference は不要になったため削除。
+export type RichTextObject = RichTextItemResponse
 
 interface DateProperty {
   start: string
