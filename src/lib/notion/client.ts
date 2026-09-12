@@ -619,6 +619,16 @@ export async function getDatabase(): Promise<Database> {
     )
   }
 
+  if (res.in_trash) {
+    // getAllPosts 側では弾いているが、この関数はサイトのタイトル・説明・
+    // アイコンを作るために integration からも呼ばれ、getAllPosts より先に
+    // 走る。判定を揃えておかないと、ゴミ箱の DB の情報でヘッダーを組み立てた
+    // あと getAllPosts で落ちるという順序になる
+    throw new Error(
+      `The database is in trash. Please restore it. database_id: ${DATABASE_ID}`
+    )
+  }
+
   const dataSource = await _getDataSource(res.data_sources[0]?.id || '')
 
   // アイコンとカバーはデータソースとデータベースの両方に存在しうるため、

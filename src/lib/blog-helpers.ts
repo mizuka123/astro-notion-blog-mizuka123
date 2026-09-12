@@ -136,8 +136,18 @@ export const buildURLToHTMLMap = async (
         .then((res) => {
           return res.text()
         })
-        .catch(() => {
-          console.log('Request was aborted')
+        .catch((err) => {
+          // ブックマークのプレビューは外部サイトの応答なのでビルドは止めない
+          // （プレビューが出ないだけ）。ただし従来は原因を問わず
+          // 「Request was aborted」と出していたため、タイムアウトなのか
+          // ネットワークエラーなのか 5xx なのか区別がつかなかった
+          const reason =
+            err instanceof Error && err.name === 'AbortError'
+              ? `timed out after ${REQUEST_TIMEOUT_MS}ms`
+              : String(err)
+          console.error(
+            `Failed to fetch a bookmark preview. url: ${url.toString()}, reason: ${reason}`
+          )
           return ''
         })
         .finally(() => {
