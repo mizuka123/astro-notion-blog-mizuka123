@@ -302,7 +302,9 @@ export async function getAllBlocksByBlockId(blockId: string): Promise<Block[]> {
     }
   }
 
-  const allBlocks = results.map((blockObject) => _buildBlock(blockObject))
+  const allBlocks = _filterReadableBlocks(blockId, results).map((blockObject) =>
+    _buildBlock(blockObject)
+  )
 
   for (let i = 0; i < allBlocks.length; i++) {
     const block = allBlocks[i]
@@ -387,6 +389,16 @@ export async function getBlock(blockId: string): Promise<Block> {
       retries: numberOfRetry,
     }
   )
+
+  if (!res.type) {
+    // 一覧取得と違い、ここは呼び出し側が「このブロックが読める」前提で
+    // 期限切れの署名付き URL を取り直すために呼ぶ。黙って空の Block を返すと
+    // posts/[slug].astro で block.Image も block.File も undefined になり、
+    // どのブロックかも分からない TypeError になるため、ここでは落とす
+    throw new Error(
+      `The block could not be read. Check the integration's access to it in Notion. block_id: ${blockId}`
+    )
+  }
 
   return _buildBlock(res)
 }
@@ -680,6 +692,32 @@ export async function _getDataSource(
       retries: numberOfRetry,
     }
   )
+}
+
+/**
+ * 統合（integration）がそのブロックを読めない場合、Notion は id だけを持つ
+ * partial なオブジェクトを返す（type も has_children も無い）。
+ * responses.ts は full のみをモデル化しているため型では検出できず、素通りすると
+ * _buildBlock が Type: undefined の中身の無い Block を作り、NotionBlocks.astro が
+ * どの case にも当たらず null を返して、記事からブロックが黙って消える。
+ *
+ * ビルドは止めない。Notion 側で共有が外れたブロックが 1 つあるだけで
+ * サイト全体がビルド不能になってしまうため（_getSyncedBlockChildren と同じ判断）。
+ * ただしどのブロックが落ちたかは分かるようにする。
+ */
+function _filterReadableBlocks(
+  parentBlockId: string,
+  blockObjects: responses.BlockObject[]
+): responses.BlockObject[] {
+  return blockObjects.filter((blockObject) => {
+    if (blockObject.type) {
+      return true
+    }
+    console.error(
+      `Skipped a block that could not be read. Check the integration's access to it in Notion. block_id: ${blockObject.id}, parent_block_id: ${parentBlockId}`
+    )
+    return false
+  })
 }
 
 function _buildBlock(blockObject: responses.BlockObject): Block {
@@ -1007,7 +1045,7 @@ async function _getTableRows(blockId: string): Promise<TableRow[]> {
     }
   }
 
-  return results.map((blockObject) => {
+  return _filterReadableBlocks(blockId, results).map((blockObject) => {
     const tableRow: TableRow = {
       Id: blockObject.id,
       Type: blockObject.type,
@@ -1073,7 +1111,7 @@ async function _getColumns(blockId: string): Promise<Column[]> {
   }
 
   return await Promise.all(
-    results.map(async (blockObject) => {
+    _filterReadableBlocks(blockId, results).map(async (blockObject) => {
       const children = await getAllBlocksByBlockId(blockObject.id)
 
       const column: Column = {
