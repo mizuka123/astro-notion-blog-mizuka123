@@ -135,13 +135,15 @@ export const buildURLToHTMLMap = async (
       return fetch(url.toString(), { signal: controller.signal })
         .then((res) => {
           if (!res.ok) {
-            // NOTE: ここでは中断していない。エラーページの HTML をそのまま
-            // metascraper に渡すと「Page Not Found」のような誤ったプレビューに
-            // なりうるが、61 箇所あるブックマークの見た目が変わるため、
-            // 本 PR では観測できるようにするだけに留める
+            // エラーページの HTML をそのまま metascraper に渡すと、その
+            // タイトルがブックマークのタイトルとして表示されてしまう。
+            // 実際に aten.com (403) のカードが
+            // 「ERROR: The request could not be satisfied」と表示されていた。
+            // プレビュー無し（URL とファビコンだけ）に倒す
             console.error(
-              `A bookmark preview responded with an error status. url: ${url.toString()}, status: ${res.status}`
+              `Skipped a bookmark preview because the site responded with an error status. url: ${url.toString()}, status: ${res.status}`
             )
+            return ''
           }
           return res.text()
         })
