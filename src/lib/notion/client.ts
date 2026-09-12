@@ -76,11 +76,6 @@ import type {
   QueryDataSourceResponse,
   RichTextItemResponse,
 } from '@notionhq/client'
-// responses.ts に残っているのはアイコン / ファイルの型だけ。
-// rich text・ブロック・ページ・データベースのレスポンス型は SDK 型に
-// 置き換え済みで、partial を含む union も型の上で表現できている。
-// 残りを判別可能 union にしてこのファイルを削除するのは次の PR で行う
-import type * as responses from './responses'
 
 const client = new Client({
   auth: NOTION_API_SECRET,
@@ -676,97 +671,110 @@ export async function _getDataSource(
 }
 
 /**
- * 統合（integration）がそのブロックを読めない場合、Notion は id だけを持つ
- * partial なオブジェクトを返す（type も has_children も無い）。
- * responses.ts は full のみをモデル化しているため型では検出できず、素通りすると
- * _buildBlock が Type: undefined の中身の無い Block を作り、NotionBlocks.astro が
- * どの case にも当たらず null を返して、記事からブロックが黙って消える。
- *
- * ビルドは止めない。Notion 側で共有が外れたブロックが 1 つあるだけで
- * サイト全体がビルド不能になってしまうため（_getSyncedBlockChildren と同じ判断）。
- * ただしどのブロックが落ちたかは分かるようにする。
- */
-/**
  * Notion のアイコンは emoji / external / file / icon（Notion 標準アイコン）/
- * custom_emoji の 5 種類がある。responses.ts の型は type: string + 各フィールドが
- * 任意という「なんでも入る箱」なので、分岐の漏れをコンパイラが検出できない。
- * 実際、データベース側だけ 5 種類に対応し、記事と callout は emoji / external の
- * 2 種類しか見ておらず、file や custom_emoji のアイコンが消えていた。
- * 3 箇所に散っていた分岐をここに集約する。
+ * custom_emoji の 5 種類がある。かつて分岐がデータベース・記事・callout の
+ * 3 箇所に散り、記事と callout では file と custom_emoji が漏れてアイコンが
+ * 消えていた。ここに集約したうえで、SDK の判別可能 union を使うことで
+ * 分岐の漏れがコンパイルエラーになるようにしている。
  */
 function _buildIcon(
-  rawIcon:
-    | responses.FileObject
-    | responses.Emoji
-    | responses.NoticonIcon
-    | responses.CustomEmojiIcon
-    | null
-    | undefined
+  rawIcon: PageObjectResponse['icon'] | undefined
 ): FileObject | Emoji | null {
   if (!rawIcon) {
     return null
   }
 
-  if (rawIcon.type === 'emoji' && 'emoji' in rawIcon) {
-    return {
-      Type: rawIcon.type,
-      Emoji: rawIcon.emoji,
+  switch (rawIcon.type) {
+    case 'emoji':
+      return {
+        Type: rawIcon.type,
+        Emoji: rawIcon.emoji,
+      }
+    case 'external':
+      return {
+        Type: rawIcon.type,
+        Url: rawIcon.external.url,
+      }
+    case 'file':
+      // NOTE: 記事と callout については、ここで値を返してもまだ表示されない。
+      // PostTitle.astro / BlogPostsLink.astro / Callout.astro / Mention.astro に
+      // Type === 'file' の分岐が無いため。分岐を足すだけでは不十分で、file 型の
+      // URL は署名付きで失効するため、データベースのアイコン
+      // (custom-icon-downloader) や FeaturedImage と同様にローカルへ
+      // ダウンロードする仕組みが要る。別途対応する
+      return {
+        Type: rawIcon.type,
+        Url: rawIcon.file.url,
+      }
+    case 'icon':
+      // Notion 標準アイコンは名前と色で返るため、画像 URL を組み立てて
+      // external として扱う (例: camera + gray -> camera_gray.svg)
+      return {
+        Type: 'external',
+        Url: `https://www.notion.so/icons/${rawIcon.icon.name}_${rawIcon.icon.color}.svg`,
+      }
+    case 'custom_emoji':
+      return {
+        Type: 'external',
+        Url: rawIcon.custom_emoji.url,
+      }
+    default: {
+      // 未対応の type が union に増えたらここでコンパイルエラーになる。
+      // throw はしない。Notion が SDK 更新前に新しい種類を返した場合に
+      // アイコン 1 つでビルド全体を止めるのは過剰なため（他の握り潰し対策と
+      // 同じ判断）。実行時はログを出して null を返す
+      const unsupported: never = rawIcon
+      console.error(
+        `Unsupported icon type. type: ${(unsupported as { type: string }).type}`
+      )
+      return null
     }
   }
-  if (rawIcon.type === 'external' && 'external' in rawIcon) {
-    return {
-      Type: rawIcon.type,
-      Url: rawIcon.external?.url || '',
-    }
-  }
-  if (rawIcon.type === 'file' && 'file' in rawIcon) {
-    // NOTE: 記事と callout については、ここで値を返してもまだ表示されない。
-    // PostTitle.astro / BlogPostsLink.astro / Callout.astro / Mention.astro に
-    // Type === 'file' の分岐が無いため。分岐を足すだけでは不十分で、file 型の
-    // URL は署名付きで失効するため、データベースのアイコン
-    // (custom-icon-downloader) や FeaturedImage と同様にローカルへ
-    // ダウンロードする仕組みが要る。別途対応する
-    return {
-      Type: rawIcon.type,
-      Url: rawIcon.file?.url || '',
-    }
-  }
-  if (rawIcon.type === 'icon' && 'icon' in rawIcon) {
-    // Notion 標準アイコンは名前と色で返るため、画像 URL を組み立てて
-    // external として扱う (例: camera + gray -> camera_gray.svg)
-    return {
-      Type: 'external',
-      Url: `https://www.notion.so/icons/${rawIcon.icon.name}_${rawIcon.icon.color}.svg`,
-    }
-  }
-  if (rawIcon.type === 'custom_emoji' && 'custom_emoji' in rawIcon) {
-    return {
-      Type: 'external',
-      Url: rawIcon.custom_emoji.url || '',
-    }
-  }
-
-  console.error(`Unsupported icon type. type: ${rawIcon.type}`)
-  return null
 }
 
 /**
- * カバー画像は external と file の 2 種類がある。記事側は file の場合に
- * Url が空文字になっていたため、こちらも集約する。
+ * カバー画像は external と file の 2 種類。
+ * SDK の PageCoverResponse は判別可能 union なので type で分岐する。
  */
 function _buildCover(
-  rawCover: responses.FileObject | null | undefined
+  rawCover: PageObjectResponse['cover'] | undefined
 ): FileObject | null {
   if (!rawCover) {
     return null
   }
 
-  return {
-    Type: rawCover.type,
-    Url: rawCover.external?.url || rawCover.file?.url || '',
+  switch (rawCover.type) {
+    case 'external':
+      return {
+        Type: rawCover.type,
+        Url: rawCover.external.url,
+      }
+    case 'file':
+      return {
+        Type: rawCover.type,
+        Url: rawCover.file.url,
+      }
+    default: {
+      const unsupported: never = rawCover
+      console.error(
+        `Unsupported cover type. type: ${(unsupported as { type: string }).type}`
+      )
+      return null
+    }
   }
 }
 
+/**
+ * 統合（integration）がそのブロックを読めない場合、Notion は id だけを持つ
+ * partial なオブジェクトを返す（type も has_children も無い）。
+ * 素通りさせると _buildBlock が Type: undefined の中身の無い Block を作り、
+ * NotionBlocks.astro がどの case にも当たらず null を返して、記事から
+ * ブロックが黙って消える。SDK の isFullBlock で弾いてログに出す。
+ *
+ * ビルドは止めない。Notion 側で共有が外れたブロックが 1 つあるだけで
+ * サイト全体がビルド不能になってしまうため（_getSyncedBlockChildren と同じ判断）。
+ * ただしどのブロックが落ちたかは分かるようにする。
+ */
 function _warnUnreadableBlocks(
   parentBlockId: string,
   blockObjects: ListBlockChildrenResponse['results']
