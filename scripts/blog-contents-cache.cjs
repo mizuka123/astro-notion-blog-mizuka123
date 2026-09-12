@@ -81,6 +81,8 @@ const getAllPages = async () => {
   );
   progressBar.start(pages.length, 0);
 
+  const failures = [];
+
   await PromisePool.withConcurrency(concurrency)
     .for(pages)
     .process(async (page) => {
@@ -90,11 +92,35 @@ const getAllPages = async () => {
 
         exec(command, options, (err, stdout, stderr) => {
           if (err) {
-            console.error(`exec error: ${err}`);
+            // 以前はここでログを出すだけで常に resolve しており、失敗した
+            // ページも「処理済み」として数えられていた。終了コードにも
+            // 出ないため、キャッシュが欠けたまま気づけなかった
+            failures.push({ page, err, stderr });
           }
           progressBar.increment();
           return resolve();
         });
       });
     });
-})();
+
+  progressBar.stop();
+
+  if (failures.length > 0) {
+    console.error(
+      `Failed to cache ${failures.length} of ${pages.length} page(s):`
+    );
+    for (const { page, err, stderr } of failures) {
+      console.error(`  - id: ${page.id}, slug: ${page.slug}`);
+      console.error(`    ${err}`);
+      if (stderr) {
+        console.error(`    stderr: ${String(stderr).trim().slice(0, 500)}`);
+      }
+    }
+    // 不完全なキャッシュで後続のビルドを通さない
+    process.exit(1);
+  }
+})().catch((err) => {
+  console.error('Failed to build the blog contents cache.');
+  console.error(err);
+  process.exit(1);
+});

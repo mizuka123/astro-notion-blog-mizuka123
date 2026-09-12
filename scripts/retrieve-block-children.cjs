@@ -41,7 +41,12 @@ const retrieveAndWriteBlockChildren = async (blockId) => {
 
   fs.writeFileSync(`tmp/${blockId}.json`, JSON.stringify(results));
 
-  results.forEach(async (block) => {
+  // forEach(async ...) だと await されず、この関数が子や synced_block の
+  // 取得を待たずに返ってしまう（キャッシュが未完成のまま「完了」する）。
+  // さらに下の throw は未処理の rejection になり、終了コードに出ない。
+  // 直列の for...of にする。各呼び出しの中で API のレート制限のために
+  // sleep しているので、並列化せず順に回すのが正しい
+  for (const block of results) {
     if (
       block.type === 'synced_block' &&
       block.synced_block.synced_from &&
@@ -50,15 +55,16 @@ const retrieveAndWriteBlockChildren = async (blockId) => {
       try {
         await retrieveAndWriteBlock(block.synced_block.synced_from.block_id);
       } catch (err) {
-        console.log(
-          `Could not retrieve the original synced_block. error: ${err}`
+        console.error(
+          `Could not retrieve the original synced_block. block_id: ${block.id}, synced_from: ${block.synced_block.synced_from.block_id}`
         );
+        console.error(err);
         throw err;
       }
     } else if (block.has_children) {
       await retrieveAndWriteBlockChildren(block.id);
     }
-  });
+  }
 };
 
 const retrieveAndWriteBlock = async (blockId) => {
@@ -80,4 +86,10 @@ const retrieveAndWriteBlock = async (blockId) => {
 (async () => {
   const blockId = process.argv[2];
   await retrieveAndWriteBlockChildren(blockId);
-})();
+})().catch((err) => {
+  // 取得に失敗したままキャッシュが不完全な状態で「成功」として扱われると、
+  // その後のビルドが古い内容や欠けた内容で通ってしまう
+  console.error(`Failed to cache block children. block_id: ${process.argv[2]}`);
+  console.error(err);
+  process.exit(1);
+});
