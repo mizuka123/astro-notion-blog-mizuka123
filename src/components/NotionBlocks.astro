@@ -107,7 +107,12 @@ const bookmarkURLs = blocks
     try {
       url = new URL(urlString)
     } catch (err) {
-      console.log(err)
+      // 下の filter で落とされるため、ここで返らなかった URL は
+      // プレビューが出ないだけ。どのブロックの URL が不正だったかを残す
+      console.error(
+        `Skipped a bookmark preview for an invalid URL. block_id: ${b.Id}, type: ${b.Type}, url: ${urlString}`
+      )
+      console.error(err)
     }
     return url
   })

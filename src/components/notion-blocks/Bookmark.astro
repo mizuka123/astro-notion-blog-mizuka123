@@ -34,7 +34,12 @@ try {
     }
   }
 } catch (err) {
-  console.log(err)
+  // URL が不正、または metascraper の解析に失敗した場合。プレビューが
+  // 出ないだけなのでビルドは止めないが、どのブロックか分かるようにする
+  console.error(
+    `Failed to build a bookmark preview. block_id: ${block.Id}, type: ${block.Type}, url: ${urlString}`
+  )
+  console.error(err)
 }
 ---
 
