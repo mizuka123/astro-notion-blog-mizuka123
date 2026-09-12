@@ -4,7 +4,8 @@ import { getPostLink } from '../lib/blog-helpers.ts'
 
 export interface Props {
   post: Post
-  enableLink: boolean
+  // 分割代入側でデフォルト値を与えている
+  enableLink?: boolean
 }
 
 const { post, enableLink = true } = Astro.props

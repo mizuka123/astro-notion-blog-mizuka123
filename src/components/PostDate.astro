@@ -2,8 +2,11 @@
 import { Post } from '../lib/interfaces.ts'
 import { getDateStr } from '../lib/blog-helpers.ts'
 
+// このコンポーネントは post.Date だけを読む。Post 全体を要求すると、
+// 日付しか持たない呼び出し側（LayoutMd）がダミーの値で埋める必要が出るため、
+// 必要なフィールドだけを宣言する（Post 全体も代入可能）
 export interface Props {
-  post: Post
+  post: Pick<Post, 'Date'>
 }
 
 const { post } = Astro.props
