@@ -1,4 +1,5 @@
 ---
+import type { MarkdownInstance } from 'astro'
 import {
   getPosts,
   getRankedPosts,
@@ -9,21 +10,40 @@ import BlogPostsLink from '../../components/BlogPostsLink.astro'
 import BlogTagsLink from '../../components/BlogTagsLink.astro'
 import styles from '../../styles/blog.module.css'
 
+interface ArchiveFrontmatter {
+  title: string
+  date: string
+  draft?: boolean
+}
+
 const [rankedPosts, tags, recentPosts] = await Promise.all([
   getRankedPosts(),
   getAllTags(),
   getPosts(5),
 ])
 
-const siteTitle = "アーカイブ一覧"
+const siteTitle = 'アーカイブ一覧'
 
-const allPosts = await Astro.glob("./*.md");
-const nonDraftPosts = allPosts.filter((post) => !post.frontmatter.draft);
+// import.meta.glob はパスをキーにしたオブジェクトを返すため Object.values で配列化する
+const allPosts = Object.values(
+  import.meta.glob<MarkdownInstance<ArchiveFrontmatter>>('./*.md', {
+    eager: true,
+  })
+)
+// Astro.glob は 0 件マッチでビルドを失敗させていたが、import.meta.glob は
+// 空オブジェクトを返すだけなので、同じ安全網を明示的に張り直す
+if (allPosts.length === 0) {
+  throw new Error(
+    "src/pages/archive に './*.md' がひとつもマッチしませんでした。アーカイブ記事の配置を確認してください。"
+  )
+}
+
+const nonDraftPosts = allPosts.filter((post) => !post.frontmatter.draft)
 const sortedPosts = nonDraftPosts.sort((a, b) => {
-  const aDate = new Date(a.frontmatter.date);
-  const bDate = new Date(b.frontmatter.date);
-  return bDate.getTime() - aDate.getTime();
-});
+  const aDate = new Date(a.frontmatter.date)
+  const bDate = new Date(b.frontmatter.date)
+  return bDate.getTime() - aDate.getTime()
+})
 ---
 
 <Layout
