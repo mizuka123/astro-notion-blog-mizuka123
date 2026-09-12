@@ -1,6 +1,6 @@
 ---
 import { Post } from '../lib/interfaces.ts'
-import { getPostLink } from '../lib/blog-helpers.ts'
+import { getIconImageURL, getPostLink } from '../lib/blog-helpers.ts'
 
 export interface Props {
   post: Post
@@ -11,6 +11,10 @@ export interface Props {
 const { post, enableLink = true } = Astro.props
 
 let title = post.Title
+
+// enableLink の true/false で同じ分岐を 2 回書くので、ここで一度だけ求める。
+// file タイプ（署名付き URL が失効する）はローカルパスに差し替わる
+const iconImageURL = getIconImageURL(post.Icon)
 ---
 
 <h2 class="post-title">
@@ -22,9 +26,9 @@ let title = post.Title
             <span>{post.Icon.Emoji}</span>
             {title}
           </>
-        ) : post.Icon && post.Icon.Type === 'external' ? (
+        ) : iconImageURL ? (
           <>
-            <img src={post.Icon.Url} alt="Post title icon" />
+            <img src={iconImageURL} alt="Post title icon" />
             {title}
           </>
         ) : (
@@ -38,9 +42,9 @@ let title = post.Title
             <span>{post.Icon.Emoji}</span>
             {title}
           </>
-        ) : post.Icon && post.Icon.Type === 'external' ? (
+        ) : iconImageURL ? (
           <>
-            <img src={post.Icon.Url} alt="Post title icon" />
+            <img src={iconImageURL} alt="Post title icon" />
             {title}
           </>
         ) : (

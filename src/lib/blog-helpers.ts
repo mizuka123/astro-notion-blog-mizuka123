@@ -2,11 +2,14 @@ import { BASE_PATH, REQUEST_TIMEOUT_MS } from '../server-constants'
 import type {
   Block,
   Database,
+  Emoji,
+  FileObject,
   Heading1,
   Heading2,
   Heading3,
   RichText,
   Column,
+  Unsupported,
 } from './interfaces'
 import { pathJoin } from './utils'
 
@@ -50,6 +53,44 @@ export const getDatabaseImageURLs = (
   }
 
   return { coverImageURL, customIconURL }
+}
+
+/**
+ * アイコンを <img> で表示するときの src を返す。表示できないものは undefined。
+ *
+ * file タイプ（Notion にアップロードされたファイル）の Url は署名付きで、
+ * 時間が経つと失効する。ビルド時にダウンロードしたものをそのまま貼ると
+ * しばらくして画像が壊れるため、ビルド時にローカルへ落としてある前提で
+ * filePath() が返すローカルパスに差し替える。
+ * external は Notion 外部のホストにある URL なのでそのまま使ってよい。
+ *
+ * emoji はテキストとして描画するもので <img> では出せない。unsupported と
+ * 未設定も含め、そういうものは undefined を返して呼び出し側のフォールバック
+ * （絵文字やタイトルのみの表示）に倒せるようにしている。
+ */
+export const getIconImageURL = (
+  icon: FileObject | Emoji | Unsupported | null
+): string | undefined => {
+  if (!icon) {
+    return undefined
+  }
+
+  if (icon.Type === 'external') {
+    return icon.Url
+  }
+
+  if (icon.Type === 'file') {
+    try {
+      return filePath(new URL(icon.Url))
+    } catch {
+      // URL が壊れているとローカルパスを導出できない。握り潰すと
+      // 「アイコンだけ出ない」原因が追えなくなるのでログには残す
+      console.error('Invalid icon URL: ', icon.Url)
+      return undefined
+    }
+  }
+
+  return undefined
 }
 
 export const extractTargetBlocks = (

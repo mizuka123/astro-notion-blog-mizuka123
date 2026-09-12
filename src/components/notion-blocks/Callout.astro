@@ -1,6 +1,7 @@
 ---
 import * as interfaces from '../../lib/interfaces.ts'
 import { snakeToKebab } from '../../lib/style-helpers.ts'
+import { getIconImageURL } from '../../lib/blog-helpers.ts'
 import RichText from './RichText.astro'
 import NotionBlocks from '../NotionBlocks.astro'
 
@@ -19,16 +20,22 @@ const icon =
   block.Callout?.Icon && block.Callout.Icon.Type !== 'unsupported'
     ? block.Callout.Icon
     : null
+
+// file タイプ（署名付き URL が失効する）はローカルパスに差し替わる。
+// URL が壊れていて差し替えられなかった場合も <img> を出せないので、
+// 上と同じ理由（空の div.icon を描かない）で描画対象から外す
+const iconImageURL = getIconImageURL(icon)
+const hasVisibleIcon = icon?.Type === 'emoji' || !!iconImageURL
 ---
 
 <div class={`callout ${snakeToKebab(block.Callout.Color)}`}>
   {
-    icon && (
+    icon && hasVisibleIcon && (
       <div class="icon">
         {icon.Type === 'emoji' ? (
           icon.Emoji
-        ) : icon.Type === 'external' ? (
-          <img src={icon.Url} alt="Icon in a callout block" />
+        ) : iconImageURL ? (
+          <img src={iconImageURL} alt="Icon in a callout block" />
         ) : null}
       </div>
     )
