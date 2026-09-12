@@ -55,6 +55,7 @@ import type {
   Text,
   ToDo,
   Toggle,
+  Unsupported,
   Video,
 } from '../interfaces'
 // NOTE: リクエストパラメータの型は SDK のものを直接使う。
@@ -689,7 +690,7 @@ export async function _getDataSource(
  */
 function _buildIcon(
   rawIcon: PageObjectResponse['icon'] | undefined
-): FileObject | Emoji | null {
+): FileObject | Emoji | Unsupported | null {
   if (!rawIcon) {
     return null
   }
@@ -732,12 +733,17 @@ function _buildIcon(
       // 未対応の type が union に増えたらここでコンパイルエラーになる。
       // throw はしない。Notion が SDK 更新前に新しい種類を返した場合に
       // アイコン 1 つでビルド全体を止めるのは過剰なため（他の握り潰し対策と
-      // 同じ判断）。実行時はログを出して null を返す
+      // 同じ判断）。実行時はログを出したうえで、「未対応だった」ことを
+      // Unsupported として値で返す。null（未設定）と混ざると、アイコンが
+      // 消えたのが Notion の種別追加のせいなのか判別できなくなるため
       const unsupported: never = rawIcon
       console.error(
         `Unsupported icon type. type: ${(unsupported as { type: string }).type}`
       )
-      return null
+      return {
+        Type: 'unsupported',
+        RawType: (unsupported as { type: string }).type,
+      }
     }
   }
 }
@@ -748,7 +754,7 @@ function _buildIcon(
  */
 function _buildCover(
   rawCover: PageObjectResponse['cover'] | undefined
-): FileObject | null {
+): FileObject | Unsupported | null {
   if (!rawCover) {
     return null
   }
@@ -765,11 +771,16 @@ function _buildCover(
         Url: rawCover.file.url,
       }
     default: {
+      // _buildIcon と同じ理由。未対応の type が増えたらコンパイルエラーにしつつ、
+      // 実行時はログを出して Unsupported を返し、未設定（null）と区別できるようにする
       const unsupported: never = rawCover
       console.error(
         `Unsupported cover type. type: ${(unsupported as { type: string }).type}`
       )
-      return null
+      return {
+        Type: 'unsupported',
+        RawType: (unsupported as { type: string }).type,
+      }
     }
   }
 }
