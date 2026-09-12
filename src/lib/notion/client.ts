@@ -1033,12 +1033,13 @@ function _buildBlock(blockObject: BlockObjectResponse): Block {
         block.Table = table
       }
       break
-    case 'column_list':
+    case 'column_list': {
       const columnList: ColumnList = {
         Columns: [],
       }
       block.ColumnList = columnList
       break
+    }
     case 'table_of_contents':
       if (blockObject.table_of_contents) {
         const tableOfContents: TableOfContents = {
