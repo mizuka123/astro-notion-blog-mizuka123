@@ -66,7 +66,10 @@ import type {
   QueryDataSourceParameters,
 } from '@notionhq/client'
 // レスポンス側は手書きの型のまま。SDK の実際の戻り値は partial を含む union だが、
-// responses.ts は full のみをモデル化しており、型ガードの導入とセットで別途対応する
+// responses.ts は full のみをモデル化している。ブロックについては
+// _warnUnreadableBlocks / _filterReadableBlocks と getBlock の実行時チェックで
+// 実害を塞いであるが、型の上では依然 partial を表現できていない。
+// responses.ts を SDK 由来の型に置き換えて型ガードで扱うのは別途対応する
 import type * as responses from './responses'
 
 const client = new Client({
@@ -705,19 +708,25 @@ export async function _getDataSource(
  * サイト全体がビルド不能になってしまうため（_getSyncedBlockChildren と同じ判断）。
  * ただしどのブロックが落ちたかは分かるようにする。
  */
+function _warnUnreadableBlocks(
+  parentBlockId: string,
+  blockObjects: responses.BlockObject[]
+): void {
+  blockObjects.forEach((blockObject) => {
+    if (!blockObject.type) {
+      console.error(
+        `A block could not be read. Check the integration's access to it in Notion. block_id: ${blockObject.id}, parent_block_id: ${parentBlockId}`
+      )
+    }
+  })
+}
+
 function _filterReadableBlocks(
   parentBlockId: string,
   blockObjects: responses.BlockObject[]
 ): responses.BlockObject[] {
-  return blockObjects.filter((blockObject) => {
-    if (blockObject.type) {
-      return true
-    }
-    console.error(
-      `Skipped a block that could not be read. Check the integration's access to it in Notion. block_id: ${blockObject.id}, parent_block_id: ${parentBlockId}`
-    )
-    return false
-  })
+  _warnUnreadableBlocks(parentBlockId, blockObjects)
+  return blockObjects.filter((blockObject) => !!blockObject.type)
 }
 
 function _buildBlock(blockObject: responses.BlockObject): Block {
@@ -1045,7 +1054,12 @@ async function _getTableRows(blockId: string): Promise<TableRow[]> {
     }
   }
 
-  return _filterReadableBlocks(blockId, results).map((blockObject) => {
+  // 表だけは読めない行も取り除かない。Table.astro はヘッダー行を配列の位置
+  // （j === 0）だけで判定しているため、先頭行を落とすと 2 行目がヘッダーに
+  // 繰り上がってしまう。読めない行は Cells が空のまま空行として描画される
+  _warnUnreadableBlocks(blockId, results)
+
+  return results.map((blockObject) => {
     const tableRow: TableRow = {
       Id: blockObject.id,
       Type: blockObject.type,
