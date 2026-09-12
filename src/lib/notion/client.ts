@@ -73,18 +73,18 @@ export async function getAllPosts(): Promise<Post[]> {
     database_id: DATABASE_ID,
   })) as responses.RetrieveDatabaseResponse
   if (!dbResponse || dbResponse.in_trash) {
-    console.error(
-      'The database either does not exist or is in trash. Please restore it to fetch posts.'
+    // 空配列を返すと記事 0 件のサイトがビルド成功として出てしまうため、
+    // 設定ミスや DB の削除はビルドを止めて気づけるようにする
+    throw new Error(
+      `The database either does not exist or is in trash. Please restore it to fetch posts. database_id: ${DATABASE_ID}`
     )
-    return []
   }
 
   const dataSouceId = dbResponse.data_sources?.[0]?.id
   if (!dataSouceId) {
-    console.error(
-      'No data source found for the database. Please add a data source to fetch posts.'
+    throw new Error(
+      `No data source found for the database. Please add a data source to fetch posts. database_id: ${DATABASE_ID}`
     )
-    return []
   }
 
   const params: requestParams.QueryDataSource = {
@@ -1080,7 +1080,13 @@ async function _getSyncedBlockChildren(block: Block): Promise<Block[]> {
     try {
       originalBlock = await getBlock(block.SyncedBlock.SyncedFrom.BlockId)
     } catch (err) {
-      console.log(`Could not retrieve the original synced_block. error: ${err}`)
+      // ここはビルドを止めない。Notion 側で共有が外れた synced_block が
+      // 1 つあるだけでサイト全体がビルド不能になってしまうため。
+      // ただしどのブロックが落ちたかは分かるようにする
+      console.error(
+        `Could not retrieve the original synced_block. block_id: ${block.Id}, synced_from: ${block.SyncedBlock?.SyncedFrom?.BlockId}`
+      )
+      console.error(err)
       return []
     }
   }
@@ -1091,13 +1097,30 @@ async function _getSyncedBlockChildren(block: Block): Promise<Block[]> {
 
 function _validPageObject(pageObject: responses.PageObject): boolean {
   const prop = pageObject.properties
-  return (
-    !!prop.Page.title &&
-    prop.Page.title.length > 0 &&
-    !!prop.Slug.rich_text &&
-    prop.Slug.rich_text.length > 0 &&
-    !!prop.Date.date
-  )
+
+  const missing: string[] = []
+  if (!prop.Page.title || prop.Page.title.length === 0) {
+    missing.push('Page')
+  }
+  if (!prop.Slug.rich_text || prop.Slug.rich_text.length === 0) {
+    missing.push('Slug')
+  }
+  if (!prop.Date.date) {
+    missing.push('Date')
+  }
+
+  if (missing.length > 0) {
+    // Published にチェックが入っているのに必須プロパティが空の記事は、
+    // ここで黙って除外されるとサイトから消えたことに気づけない。
+    // ビルドは止めない（記事 1 件の記入漏れで全体を止めない）が、
+    // どのページが落ちたかは分かるようにする
+    console.error(
+      `Skipped a published page with empty required properties. page_id: ${pageObject.id}, missing: ${missing.join(', ')}`
+    )
+    return false
+  }
+
+  return true
 }
 
 function _buildPost(pageObject: responses.PageObject): Post {
