@@ -1,6 +1,7 @@
 import { BASE_PATH, REQUEST_TIMEOUT_MS } from '../server-constants'
 import type {
   Block,
+  Database,
   Heading1,
   Heading2,
   Heading3,
@@ -12,6 +13,42 @@ import { pathJoin } from './utils'
 export const filePath = (url: URL): string => {
   const [dir, filename] = url.pathname.split('/').slice(-2)
   return pathJoin(BASE_PATH, `/notion/${dir}/${filename}`)
+}
+
+/**
+ * データベースのカバー画像とカスタムアイコンの URL を、表示に使える形で返す。
+ *
+ * 取得できなかったものは undefined を返し、呼び出し側で出し分ける。
+ * Layout.astro と LayoutMd.astro に同じ導出がコピーされていたのをまとめたもの。
+ */
+export const getDatabaseImageURLs = (
+  database: Database
+): { coverImageURL?: string; customIconURL?: string } => {
+  let coverImageURL: string | undefined
+  if (database.Cover) {
+    if (database.Cover.Type === 'external') {
+      coverImageURL = database.Cover.Url
+    } else if (database.Cover.Type === 'file') {
+      try {
+        coverImageURL = filePath(new URL(database.Cover.Url))
+      } catch {
+        console.log('Invalid DB cover image URL: ', database.Cover.Url)
+      }
+    }
+  }
+
+  let customIconURL: string | undefined
+  const icon = database.Icon
+  // Icon は FileObject | Emoji なので、Url を持つ方であることを絞り込む
+  if (icon && icon.Type === 'file' && 'Url' in icon) {
+    try {
+      customIconURL = filePath(new URL(icon.Url))
+    } catch {
+      console.log('Invalid DB custom icon URL: ', icon.Url)
+    }
+  }
+
+  return { coverImageURL, customIconURL }
 }
 
 export const extractTargetBlocks = (
