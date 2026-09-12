@@ -1233,8 +1233,10 @@ function _validPageObject(
   // id だけの partial なページが混ざる（properties が無い）。
   // data_source のオブジェクトが混ざることも型の上ではありうる
   if (!isFullPage(pageObject)) {
+    // results には partial なページのほか、型の上では data_source の
+    // オブジェクトも混ざりうる。どちらだったか分かるよう object を出す
     console.error(
-      `Skipped a page that could not be read. Check the integration's access to it in Notion. page_id: ${pageObject.id}`
+      `Skipped an entry that is not a readable page. Check the integration's access to it in Notion. id: ${pageObject.id}, object: ${pageObject.object}`
     )
     return false
   }
