@@ -122,6 +122,23 @@ const { coverImageURL, customIconURL } = getDatabaseImageURLs(database)
 </html>
 
 <style>
+  /*
+   * このブロックは Layout.astro と LayoutMd.astro で完全に一致している。
+   * 片方だけ直すとレイアウトがずれるので、必ず両方に同じ変更を入れること
+   * （diff で一致することがそのまま同期チェックになる）。
+   *
+   * 外部ファイルに切り出していないのは、scoped style を外に出すと
+   * data-astro-cid-* が付かなくなり、適用範囲が広がってしまうため。
+   * たとえば main footer は、現状スロットに差し込まれた <footer>
+   * （ページネーションや前後記事リンク）には効いていないが、
+   * グローバル化すると text-align: center と font-size: 0.75rem が
+   * それらにも効いてしまう。global CSS を共通化した
+   * src/styles/layout-global.css と違い、scoped は同じ手が使えない。
+   *
+   * NOTE: Layout.astro は upstream の otoyo/astro-notion-blog 由来。
+   * upstream 側でこのあたりが変更されたら、LayoutMd.astro にも
+   * 同じ変更を反映すること。
+   */
   .container {
     min-height: 100vh;
   }
