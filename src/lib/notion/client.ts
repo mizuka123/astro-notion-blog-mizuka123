@@ -2,7 +2,7 @@ import { APIResponseError, Client } from '@notionhq/client'
 import retry from 'async-retry'
 import ExifTransformer from 'exif-be-gone'
 import fs, { createWriteStream } from 'node:fs'
-import { Readable } from 'node:stream'
+import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import sharp from 'sharp'
 import {
@@ -434,17 +434,42 @@ export async function downloadFile(url: URL) {
   const filepath = `${dir}/${filename}`
 
   const writeStream = createWriteStream(filepath)
-  const rotate = sharp().rotate()
+  const source = Readable.fromWeb(res.body as any) // eslint-disable-line @typescript-eslint/no-explicit-any
 
-  let stream = Readable.fromWeb(res.body as any) // eslint-disable-line @typescript-eslint/no-explicit-any
-
-  if (res.headers.get('content-type') === 'image/jpeg') {
-    stream = stream.pipe(rotate)
+  // ヘッダを受け取った時点で fetch の signal は本文の転送に効かなくなる。
+  // 一定時間データが流れてこなければ中断しないと、転送が停止したときに
+  // ビルドが無限に待ち続け、どの URL で止まったのかも分からなくなる。
+  // 進んでいる限りタイマーを張り直すので、単に遅いだけの転送は中断しない
+  let stallTimeoutId: NodeJS.Timeout | undefined
+  const restartStallTimeout = () => {
+    clearTimeout(stallTimeoutId)
+    stallTimeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
   }
+  const stallGuard = new Transform({
+    transform(chunk, _encoding, callback) {
+      restartStallTimeout()
+      callback(null, chunk)
+    },
+  })
+
+  // sharp を先に stream.pipe() で繋ぐと転送元が pipeline の管理外になり、
+  // 転送中のエラーが catch されず未処理例外になるため、全段を pipeline に渡す
+  const stages =
+    res.headers.get('content-type') === 'image/jpeg'
+      ? [
+          source,
+          stallGuard,
+          sharp().rotate(),
+          new ExifTransformer(),
+          writeStream,
+        ]
+      : [source, stallGuard, new ExifTransformer(), writeStream]
+
+  restartStallTimeout()
 
   try {
     // pipeline は Promise を返すため await しないと書き込み時のエラーを捕捉できない
-    await pipeline(stream, new ExifTransformer(), writeStream)
+    await pipeline(stages, { signal: controller.signal })
   } catch (err) {
     // 途中まで書かれたファイルは public/notion に残り続け、後続のビルドで
     // public-notion-copier がそのまま dist にコピーしてしまうため削除する
@@ -452,15 +477,21 @@ export async function downloadFile(url: URL) {
     throw new Error(`Failed to write ${filepath} from ${displayUrl(url)}`, {
       cause: err,
     })
+  } finally {
+    clearTimeout(stallTimeoutId)
   }
 }
 
 /**
  * 渡された URL をすべてダウンロードし、1 件でも失敗したらエラーを投げる。
  *
- * 最初の失敗で打ち切らず全件を試すので、1 回のビルドで失敗した URL を
- * すべて列挙できる。不正な URL もダウンロードできない以上は失敗として扱う
- * （取りこぼすと本番に壊れた <img> が出るため）。
+ * 最初の失敗で打ち切らず全件を試すので、この呼び出しに渡した URL については
+ * 失敗したものを 1 回のビルドですべて列挙できる。不正な URL もダウンロード
+ * できない以上は失敗として扱う（取りこぼすと本番に壊れた <img> が出るため）。
+ *
+ * なお astro:build:start フックは integration ごとに直列に実行されるため、
+ * 先に走った integration が投げた時点でビルドは止まり、後続の integration の
+ * 失敗はそのビルドでは分からない。
  */
 export async function downloadFiles(
   label: string,
