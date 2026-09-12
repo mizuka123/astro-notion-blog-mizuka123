@@ -30,6 +30,14 @@ const allPosts = Object.values(
     eager: true,
   })
 )
+// Astro.glob は 0 件マッチでビルドを失敗させていたが、import.meta.glob は
+// 空オブジェクトを返すだけなので、同じ安全網を明示的に張り直す
+if (allPosts.length === 0) {
+  throw new Error(
+    "src/pages/archive に './*.md' がひとつもマッチしませんでした。アーカイブ記事の配置を確認してください。"
+  )
+}
+
 const nonDraftPosts = allPosts.filter((post) => !post.frontmatter.draft)
 const sortedPosts = nonDraftPosts.sort((a, b) => {
   const aDate = new Date(a.frontmatter.date)
@@ -38,7 +46,9 @@ const sortedPosts = nonDraftPosts.sort((a, b) => {
 })
 ---
 
-<Layout title={siteTitle}>
+<Layout
+  title={siteTitle}
+>
   <div slot="main" class={styles.main}>
     {
       sortedPosts.map((post) => (
