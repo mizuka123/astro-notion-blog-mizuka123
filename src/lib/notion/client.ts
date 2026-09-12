@@ -52,6 +52,12 @@ import type {
   Toggle,
   Video,
 } from '../interfaces'
+// NOTE: リクエストパラメータの型は SDK のものを直接使う。
+// upstream（otoyo/astro-notion-blog）にあった src/lib/notion/request-params.ts は
+// これらと構造的に等価だったため削除した。upstream 側でパラメータ型が追加・変更
+// されると `git merge upstream/main` で request-params.ts の modify/delete 衝突と
+// この import 周りの衝突が起きる。その際はファイルを復活させるのではなく、
+// 追加されたフィールドを対応する SDK の型の使い方に読み替えること。
 import type {
   GetBlockParameters,
   GetDatabaseParameters,
@@ -59,6 +65,8 @@ import type {
   ListBlockChildrenParameters,
   QueryDataSourceParameters,
 } from '@notionhq/client'
+// レスポンス側は手書きの型のまま。SDK の実際の戻り値は partial を含む union だが、
+// responses.ts は full のみをモデル化しており、型ガードの導入とセットで別途対応する
 import type * as responses from './responses'
 
 const client = new Client({
