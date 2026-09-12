@@ -705,6 +705,12 @@ function _buildIcon(
     }
   }
   if (rawIcon.type === 'file' && 'file' in rawIcon) {
+    // NOTE: 記事と callout については、ここで値を返してもまだ表示されない。
+    // PostTitle.astro / BlogPostsLink.astro / Callout.astro / Mention.astro に
+    // Type === 'file' の分岐が無いため。分岐を足すだけでは不十分で、file 型の
+    // URL は署名付きで失効するため、データベースのアイコン
+    // (custom-icon-downloader) や FeaturedImage と同様にローカルへ
+    // ダウンロードする仕組みが要る。別途対応する
     return {
       Type: rawIcon.type,
       Url: rawIcon.file?.url || '',
