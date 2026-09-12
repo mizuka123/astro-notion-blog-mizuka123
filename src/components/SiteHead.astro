@@ -2,11 +2,12 @@
 import { getDatabase } from '../lib/notion/client'
 import { getNavLink, getStaticFilePath } from '../lib/blog-helpers'
 
+// すべて省略可能。省略時は Notion のデータベース側の値にフォールバックする
 export interface Props {
-  title: string
-  description: string
-  path: string
-  ogImage: string
+  title?: string
+  description?: string
+  path?: string
+  ogImage?: string
 }
 
 const { title = '', description = '', path = '/', ogImage = '' } = Astro.props
@@ -22,29 +23,29 @@ const siteOGImage = new URL(
 )
 ---
 
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="robots" content="max-image-preview:large" />
-    <meta charset="UTF-8" />
-    <meta name="generator" content={Astro.generator} />
-    <title>{siteTitle}</title>
-    <meta name="description" content={siteDescription} />
-    <link rel="canonical" href={siteURL} />
-    <meta property="og:url" content={siteURL} />
-    <meta property="og:title" content={siteTitle} />
-    <meta property="og:description" content={siteDescription} />
-    <meta property="og:site_name" content={database.Title} />
-    <meta property="og:image" content={ogImage || siteOGImage} />
-    <meta name="twitter:title" content={siteTitle} />
-    <meta name="twitter:description" content={siteDescription} />
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:image" content={ogImage || siteOGImage} />
-    <link
-      rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.css"
-      integrity="sha384-vKruj+a13U8yHIkAyGgK1J3ArTLzrFGBbBc0tDp4ad/EyewESeXE/Iv67Aj8gKZ0"
-      crossorigin="anonymous"
-    />
-    <script type="text/javascript" src="//mlb.valuecommerce.com/mylinkbox.js" async></script>
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8748150415175448"
-    crossorigin="anonymous"></script>
-    <link rel="sitemap" href="/sitemap-index.xml">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="max-image-preview:large" />
+<meta charset="UTF-8" />
+<meta name="generator" content={Astro.generator} />
+<title>{siteTitle}</title>
+<meta name="description" content={siteDescription} />
+<link rel="canonical" href={siteURL} />
+<meta property="og:url" content={siteURL} />
+<meta property="og:title" content={siteTitle} />
+<meta property="og:description" content={siteDescription} />
+<meta property="og:site_name" content={database.Title} />
+<meta property="og:image" content={ogImage || siteOGImage} />
+<meta name="twitter:title" content={siteTitle} />
+<meta name="twitter:description" content={siteDescription} />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content={ogImage || siteOGImage} />
+<link
+  rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.css"
+  integrity="sha384-vKruj+a13U8yHIkAyGgK1J3ArTLzrFGBbBc0tDp4ad/EyewESeXE/Iv67Aj8gKZ0"
+  crossorigin="anonymous"
+/>
+<script type="text/javascript" src="//mlb.valuecommerce.com/mylinkbox.js" async></script>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8748150415175448"
+crossorigin="anonymous"></script>
+<link rel="sitemap" href="/sitemap-index.xml">
