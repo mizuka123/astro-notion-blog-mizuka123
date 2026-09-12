@@ -472,8 +472,14 @@ export async function downloadFile(url: URL) {
     await pipeline(stages, { signal: controller.signal })
   } catch (err) {
     // 途中まで書かれたファイルは public/notion に残り続け、後続のビルドで
-    // public-notion-copier がそのまま dist にコピーしてしまうため削除する
-    fs.rmSync(filepath, { force: true })
+    // public-notion-copier がそのまま dist にコピーしてしまうため削除する。
+    // 後始末の失敗で本来のエラーを覆い隠さないよう、ここでは投げない
+    try {
+      fs.rmSync(filepath, { force: true })
+    } catch (cleanupErr) {
+      console.error(`Failed to remove partial file ${filepath}`)
+      console.error(cleanupErr)
+    }
     throw new Error(`Failed to write ${filepath} from ${displayUrl(url)}`, {
       cause: err,
     })
