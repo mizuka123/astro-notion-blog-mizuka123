@@ -76,12 +76,10 @@ import type {
   QueryDataSourceResponse,
   RichTextItemResponse,
 } from '@notionhq/client'
-// responses.ts は SDK 型への置き換えを段階的に進めている途中。
-// rich text は SDK の RichTextItemResponse に置き換え済み。
-// ブロック・ページ・データベースのレスポンス型はまだ手書きで、SDK の実際の
-// 戻り値が partial を含む union であることを型の上では表現できていない
-// （実害は _warnUnreadableBlocks / _filterReadableBlocks / getBlock /
-// _validPageObject の実行時チェックで塞いである）。順に置き換えていく
+// responses.ts に残っているのはアイコン / ファイルの型だけ。
+// rich text・ブロック・ページ・データベースのレスポンス型は SDK 型に
+// 置き換え済みで、partial を含む union も型の上で表現できている。
+// 残りを判別可能 union にしてこのファイルを削除するのは次の PR で行う
 import type * as responses from './responses'
 
 const client = new Client({
@@ -106,9 +104,11 @@ export async function getAllPosts(): Promise<Post[]> {
   // 返すため使わない。full にしか存在しないフィールドで絞り込む
   if (!('in_trash' in dbResponse) || dbResponse.in_trash) {
     // 空配列を返すと記事 0 件のサイトがビルド成功として出てしまうため、
-    // 設定ミスや DB の削除はビルドを止めて気づけるようにする
+    // 設定ミスや DB の削除はビルドを止めて気づけるようにする。
+    // in_trash が無い（partial な）レスポンスはゴミ箱以外の原因でも起きうる
+    // ため、原因を断定しない文言にしてある
     throw new Error(
-      `The database either does not exist or is in trash. Please restore it to fetch posts. database_id: ${DATABASE_ID}`
+      `The database could not be read as a full object. It may not exist, be in trash, or the integration may lack access to it. database_id: ${DATABASE_ID}`
     )
   }
 
