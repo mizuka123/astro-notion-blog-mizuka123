@@ -68,6 +68,7 @@ import type {
   GetBlockParameters,
   GetDatabaseParameters,
   GetDataSourceParameters,
+  GetDataSourceResponse,
   ListBlockChildrenParameters,
   ListBlockChildrenResponse,
   PageObjectResponse,
@@ -98,10 +99,12 @@ export async function getAllPosts(): Promise<Post[]> {
     return Promise.resolve(postsCache)
   }
 
-  const dbResponse = (await client.databases.retrieve({
+  const dbResponse = await client.databases.retrieve({
     database_id: DATABASE_ID,
-  })) as responses.RetrieveDatabaseResponse
-  if (!dbResponse || dbResponse.in_trash) {
+  })
+  // isFullDatabase は object === 'database' しか見ておらず partial でも true を
+  // 返すため使わない。full にしか存在しないフィールドで絞り込む
+  if (!('in_trash' in dbResponse) || dbResponse.in_trash) {
     // 空配列を返すと記事 0 件のサイトがビルド成功として出てしまうため、
     // 設定ミスや DB の削除はビルドを止めて気づけるようにする
     throw new Error(
@@ -109,7 +112,7 @@ export async function getAllPosts(): Promise<Post[]> {
     )
   }
 
-  const dataSouceId = dbResponse.data_sources?.[0]?.id
+  const dataSouceId = dbResponse.data_sources[0]?.id
   if (!dataSouceId) {
     throw new Error(
       `No data source found for the database. Please add a data source to fetch posts. database_id: ${DATABASE_ID}`
@@ -597,9 +600,7 @@ export async function getDatabase(): Promise<Database> {
   const res = await retry(
     async (bail) => {
       try {
-        return (await client.databases.retrieve(
-          params
-        )) as responses.RetrieveDatabaseResponse
+        return await client.databases.retrieve(params)
       } catch (error: unknown) {
         if (error instanceof APIResponseError) {
           if (error.status && error.status >= 400 && error.status < 500) {
@@ -614,12 +615,23 @@ export async function getDatabase(): Promise<Database> {
     }
   )
 
-  const dataSource = await _getDataSource(res.data_sources?.[0]?.id || '')
+  if (!('data_sources' in res)) {
+    // partial なレスポンスは title / description / data_sources を持たない。
+    // このまま進むと _getDataSource('') が Notion に 400 を返されるだけなので、
+    // どのデータベースが読めなかったのかを示して止める
+    throw new Error(
+      `The database could not be read. Check the integration's access to it in Notion. database_id: ${DATABASE_ID}`
+    )
+  }
+
+  const dataSource = await _getDataSource(res.data_sources[0]?.id || '')
 
   // アイコンとカバーはデータソースとデータベースの両方に存在しうるため、
-  // データソース側が未設定ならデータベース側にフォールバックする
-  const rawIcon = dataSource.icon || res.icon
-  const rawCover = dataSource.cover || res.cover
+  // データソース側が未設定ならデータベース側にフォールバックする。
+  // データソースが partial の場合は icon / cover を持たないため null 扱いにする
+  const rawIcon = ('icon' in dataSource ? dataSource.icon : null) || res.icon
+  const rawCover =
+    ('cover' in dataSource ? dataSource.cover : null) || res.cover
 
   const icon = _buildIcon(rawIcon)
   const cover = _buildCover(rawCover)
@@ -639,7 +651,7 @@ export async function getDatabase(): Promise<Database> {
 
 export async function _getDataSource(
   data_source_id: string
-): Promise<responses.DataSourceObject> {
+): Promise<GetDataSourceResponse> {
   const params: GetDataSourceParameters = {
     data_source_id: data_source_id,
   }
@@ -647,9 +659,7 @@ export async function _getDataSource(
   return await retry(
     async (bail) => {
       try {
-        return (await client.dataSources.retrieve(
-          params
-        )) as responses.RetrieveDataSourceResponse
+        return await client.dataSources.retrieve(params)
       } catch (error: unknown) {
         if (error instanceof APIResponseError) {
           if (error.status && error.status >= 400 && error.status < 500) {
