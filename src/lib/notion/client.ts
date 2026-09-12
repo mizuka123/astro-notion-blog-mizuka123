@@ -2,7 +2,7 @@ import { APIResponseError, Client } from '@notionhq/client'
 import retry from 'async-retry'
 import ExifTransformer from 'exif-be-gone'
 import fs, { createWriteStream } from 'node:fs'
-import { Readable } from 'node:stream'
+import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import sharp from 'sharp'
 import {
@@ -394,6 +394,12 @@ export async function getAllTags(): Promise<SelectProperty[]> {
     )
 }
 
+/**
+ * Notion の署名付き URL はクエリ文字列に署名を含み、ビルドログは保存されるため、
+ * ログやエラーメッセージにはクエリを落としたものを使う。
+ */
+const displayUrl = (url: URL): string => `${url.origin}${url.pathname}`
+
 export async function downloadFile(url: URL) {
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
@@ -404,7 +410,6 @@ export async function downloadFile(url: URL) {
       method: 'GET',
       signal: controller.signal,
     })
-    clearTimeout(timeoutId)
 
     if (!res.ok) {
       throw new Error(`HTTP error! status: ${res.status}`)
@@ -414,8 +419,10 @@ export async function downloadFile(url: URL) {
       throw new Error('Response body is null')
     }
   } catch (err) {
-    console.log(err)
-    return Promise.resolve()
+    throw new Error(`Failed to fetch ${displayUrl(url)}`, { cause: err })
+  } finally {
+    // fetch が失敗した場合も必ずタイマーを解放する
+    clearTimeout(timeoutId)
   }
 
   const dir = './public/notion/' + url.pathname.split('/').slice(-2)[0]
@@ -427,19 +434,116 @@ export async function downloadFile(url: URL) {
   const filepath = `${dir}/${filename}`
 
   const writeStream = createWriteStream(filepath)
-  const rotate = sharp().rotate()
+  const source = Readable.fromWeb(res.body as any) // eslint-disable-line @typescript-eslint/no-explicit-any
 
-  let stream = Readable.fromWeb(res.body as any) // eslint-disable-line @typescript-eslint/no-explicit-any
-
-  if (res.headers.get('content-type') === 'image/jpeg') {
-    stream = stream.pipe(rotate)
+  // ヘッダを受け取った時点で fetch の signal は本文の転送に効かなくなる。
+  // 一定時間データが流れてこなければ中断しないと、転送が停止したときに
+  // ビルドが無限に待ち続け、どの URL で止まったのかも分からなくなる。
+  // 進んでいる限りタイマーを張り直すので、単に遅いだけの転送は中断しない
+  let stallTimeoutId: NodeJS.Timeout | undefined
+  const restartStallTimeout = () => {
+    clearTimeout(stallTimeoutId)
+    stallTimeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
   }
+  const stallGuard = new Transform({
+    transform(chunk, _encoding, callback) {
+      restartStallTimeout()
+      callback(null, chunk)
+    },
+  })
+
+  // sharp を先に stream.pipe() で繋ぐと転送元が pipeline の管理外になり、
+  // 転送中のエラーが catch されず未処理例外になるため、全段を pipeline に渡す
+  const stages =
+    res.headers.get('content-type') === 'image/jpeg'
+      ? [
+          source,
+          stallGuard,
+          sharp().rotate(),
+          new ExifTransformer(),
+          writeStream,
+        ]
+      : [source, stallGuard, new ExifTransformer(), writeStream]
+
+  restartStallTimeout()
+
   try {
-    return pipeline(stream, new ExifTransformer(), writeStream)
+    // pipeline は Promise を返すため await しないと書き込み時のエラーを捕捉できない
+    await pipeline(stages, { signal: controller.signal })
   } catch (err) {
-    console.log(err)
-    writeStream.end()
-    return Promise.resolve()
+    // 途中まで書かれたファイルは public/notion に残り続け、後続のビルドで
+    // public-notion-copier がそのまま dist にコピーしてしまうため削除する。
+    // 後始末の失敗で本来のエラーを覆い隠さないよう、ここでは投げない
+    try {
+      fs.rmSync(filepath, { force: true })
+    } catch (cleanupErr) {
+      console.error(`Failed to remove partial file ${filepath}`)
+      console.error(cleanupErr)
+    }
+    throw new Error(`Failed to write ${filepath} from ${displayUrl(url)}`, {
+      cause: err,
+    })
+  } finally {
+    clearTimeout(stallTimeoutId)
+  }
+}
+
+/**
+ * 渡された URL をすべてダウンロードし、1 件でも失敗したらエラーを投げる。
+ *
+ * 最初の失敗で打ち切らず全件を試すので、この呼び出しに渡した URL については
+ * 失敗したものを 1 回のビルドですべて列挙できる。不正な URL もダウンロード
+ * できない以上は失敗として扱う（取りこぼすと本番に壊れた <img> が出るため）。
+ *
+ * なお astro:build:start フックは integration ごとに直列に実行されるため、
+ * 先に走った integration が投げた時点でビルドは止まり、後続の integration の
+ * 失敗はそのビルドでは分からない。
+ */
+export async function downloadFiles(
+  label: string,
+  rawUrls: string[]
+): Promise<void> {
+  const urls: URL[] = []
+  const failures: string[] = []
+  // 同じファイルを指す URL が複数含まれていると、同一パスへ並行に書き込んで
+  // ファイルが壊れる（失敗側の後始末が成功側の書き込みを消すこともある）。
+  // 保存先パスは pathname の末尾 2 要素だけで決まるので、それをキーに重複を除く
+  const seenPaths = new Set<string>()
+
+  rawUrls.forEach((rawUrl) => {
+    let url!: URL
+    try {
+      url = new URL(rawUrl)
+    } catch (err) {
+      console.error(`[${label}] invalid URL: ${rawUrl}`)
+      console.error(err)
+      failures.push(`${rawUrl} (invalid URL)`)
+      return
+    }
+
+    const destPath = url.pathname.split('/').slice(-2).join('/')
+    if (seenPaths.has(destPath)) {
+      return
+    }
+    seenPaths.add(destPath)
+    urls.push(url)
+  })
+
+  const results = await Promise.allSettled(urls.map((url) => downloadFile(url)))
+
+  results.forEach((result, i) => {
+    if (result.status === 'rejected') {
+      console.error(`[${label}] download failed: ${displayUrl(urls[i])}`)
+      console.error(result.reason)
+      failures.push(displayUrl(urls[i]))
+    }
+  })
+
+  if (failures.length > 0) {
+    throw new Error(
+      `[${label}] ${failures.length} of ${rawUrls.length} files failed to download:\n` +
+        failures.map((failure) => `  - ${failure}`).join('\n')
+    )
   }
 }
 
