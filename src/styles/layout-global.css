@@ -5,6 +5,13 @@
  * このファイルを読み込んでも見た目は変わらない。
  * 両者で値が違う宣言（code の背景色、table の vertical-align など）も
  * ここには置かず、各 Layout 側に残している。
+ *
+ * NOTE: 元は Layout.astro（upstream の otoyo/astro-notion-blog 由来）と
+ * LayoutMd.astro（フォーク独自）の <style is:global> にあったもの。
+ * upstream 側でこのあたりのスタイルが変更されると、Layout.astro に
+ * 該当行が無いため `git merge upstream/main` で衝突する。その際は
+ * 変更を「このファイル（両 Layout 共通）」に入れるか
+ * 「Layout.astro 側だけ」に入れるかを判断すること。
  */
 
 :root {
