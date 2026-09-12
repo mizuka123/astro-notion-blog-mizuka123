@@ -116,8 +116,17 @@ export interface File {
   External?: External
 }
 
+/**
+ * Type をリテラル型にしているのは、FileObject | Emoji | Unsupported を
+ * 判別可能 union として機能させるため。
+ *
+ * Type: string のままだと `icon.Type === 'emoji'` と書いても TypeScript は
+ * どのメンバーかを絞り込めず、`.Url` / `.Emoji` を読むだけで型エラーになる
+ * （判別子はリテラル型でなければならない）。Unsupported.Type: 'unsupported'
+ * と揃えて、union の全メンバーが判別子を持つ状態にしている。
+ */
 export interface FileObject {
-  Type: string
+  Type: 'file' | 'external'
   Url: string
   ExpiryTime?: string
 }
@@ -243,8 +252,9 @@ export interface Text {
   Link?: Link
 }
 
+// FileObject と同じ理由で、判別子として使えるようリテラル型にしている
 export interface Emoji {
-  Type: string
+  Type: 'emoji'
   Emoji: string
 }
 

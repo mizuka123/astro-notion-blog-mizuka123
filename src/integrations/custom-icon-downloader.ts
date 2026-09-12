@@ -1,5 +1,4 @@
 import type { AstroIntegration } from 'astro'
-import type { FileObject } from '../lib/interfaces'
 import { getDatabase, downloadFiles } from '../lib/notion/client'
 
 export default (): AstroIntegration => ({
@@ -8,13 +7,13 @@ export default (): AstroIntegration => ({
     'astro:build:start': async () => {
       const database = await getDatabase()
 
+      // Type がリテラル型になったので、この判定だけで FileObject に絞り込める
+      // （以前は Type: string で絞り込めず as FileObject のキャストが要った）
       if (!database.Icon || database.Icon.Type !== 'file') {
         return
       }
 
-      const icon = database.Icon as FileObject
-
-      await downloadFiles('custom-icon-downloader', [icon.Url])
+      await downloadFiles('custom-icon-downloader', [database.Icon.Url])
     },
   },
 })
