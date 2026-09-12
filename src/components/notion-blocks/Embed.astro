@@ -27,7 +27,12 @@ let url: URL
 try {
   url = new URL(block.Embed.Url)
 } catch (err) {
-  console.log(err)
+  // 下流で url が undefined のまま使われるため、どのブロックの URL が
+  // 不正だったのかを残す
+  console.error(
+    `Invalid embed URL. block_id: ${block.Id}, url: ${block.Embed?.Url}`
+  )
+  console.error(err)
 }
 ---
 

@@ -32,7 +32,7 @@ export const getDatabaseImageURLs = (
       try {
         coverImageURL = filePath(new URL(database.Cover.Url))
       } catch {
-        console.log('Invalid DB cover image URL: ', database.Cover.Url)
+        console.error('Invalid DB cover image URL: ', database.Cover.Url)
       }
     }
   }
@@ -44,7 +44,7 @@ export const getDatabaseImageURLs = (
     try {
       customIconURL = filePath(new URL(icon.Url))
     } catch {
-      console.log('Invalid DB custom icon URL: ', icon.Url)
+      console.error('Invalid DB custom icon URL: ', icon.Url)
     }
   }
 
@@ -134,20 +134,32 @@ export const buildURLToHTMLMap = async (
 
       return fetch(url.toString(), { signal: controller.signal })
         .then((res) => {
+          if (!res.ok) {
+            // NOTE: ここでは中断していない。エラーページの HTML をそのまま
+            // metascraper に渡すと「Page Not Found」のような誤ったプレビューに
+            // なりうるが、61 箇所あるブックマークの見た目が変わるため、
+            // 本 PR では観測できるようにするだけに留める
+            console.error(
+              `A bookmark preview responded with an error status. url: ${url.toString()}, status: ${res.status}`
+            )
+          }
           return res.text()
         })
         .catch((err) => {
           // ブックマークのプレビューは外部サイトの応答なのでビルドは止めない
           // （プレビューが出ないだけ）。ただし従来は原因を問わず
           // 「Request was aborted」と出していたため、タイムアウトなのか
-          // ネットワークエラーなのか 5xx なのか区別がつかなかった
-          const reason =
-            err instanceof Error && err.name === 'AbortError'
-              ? `timed out after ${REQUEST_TIMEOUT_MS}ms`
-              : String(err)
+          // ネットワークエラーなのか区別がつかなかった
+          const timedOut = err instanceof Error && err.name === 'AbortError'
           console.error(
-            `Failed to fetch a bookmark preview. url: ${url.toString()}, reason: ${reason}`
+            `Failed to fetch a bookmark preview. url: ${url.toString()}${
+              timedOut ? ` (timed out after ${REQUEST_TIMEOUT_MS}ms)` : ''
+            }`
           )
+          // Node の fetch はネットワークエラーを `TypeError: fetch failed` に
+          // 包み、実際の原因を cause に入れる。文字列化すると原因が消えるので
+          // エラーオブジェクトをそのまま渡す
+          console.error(err)
           return ''
         })
         .finally(() => {
