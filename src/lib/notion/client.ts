@@ -3,6 +3,7 @@ import retry from 'async-retry'
 import ExifTransformer from 'exif-be-gone'
 import fs, { createWriteStream } from 'node:fs'
 import { Readable, Transform } from 'node:stream'
+import type { ReadableStream as WebReadableStream } from 'node:stream/web'
 import { pipeline } from 'node:stream/promises'
 import sharp from 'sharp'
 import {
@@ -51,7 +52,13 @@ import type {
   Toggle,
   Video,
 } from '../interfaces'
-import type * as requestParams from './request-params'
+import type {
+  GetBlockParameters,
+  GetDatabaseParameters,
+  GetDataSourceParameters,
+  ListBlockChildrenParameters,
+  QueryDataSourceParameters,
+} from '@notionhq/client'
 import type * as responses from './responses'
 
 const client = new Client({
@@ -87,7 +94,7 @@ export async function getAllPosts(): Promise<Post[]> {
     )
   }
 
-  const params: requestParams.QueryDataSource = {
+  const params: QueryDataSourceParameters = {
     data_source_id: dataSouceId,
     filter: {
       and: [
@@ -120,7 +127,7 @@ export async function getAllPosts(): Promise<Post[]> {
       async (bail) => {
         try {
           return (await client.dataSources.query(
-            params as any // eslint-disable-line @typescript-eslint/no-explicit-any
+            params
           )) as responses.QueryDataSourceResponse
         } catch (error: unknown) {
           if (error instanceof APIResponseError) {
@@ -252,7 +259,7 @@ export async function getAllBlocksByBlockId(blockId: string): Promise<Block[]> {
   if (fs.existsSync(`tmp/${blockId}.json`)) {
     results = JSON.parse(fs.readFileSync(`tmp/${blockId}.json`, 'utf-8'))
   } else {
-    const params: requestParams.RetrieveBlockChildren = {
+    const params: ListBlockChildrenParameters = {
       block_id: blockId,
     }
 
@@ -261,7 +268,7 @@ export async function getAllBlocksByBlockId(blockId: string): Promise<Block[]> {
         async (bail) => {
           try {
             return (await client.blocks.children.list(
-              params as any // eslint-disable-line @typescript-eslint/no-explicit-any
+              params
             )) as responses.RetrieveBlockChildrenResponse
           } catch (error: unknown) {
             if (error instanceof APIResponseError) {
@@ -349,7 +356,7 @@ export async function getAllBlocksByBlockId(blockId: string): Promise<Block[]> {
 }
 
 export async function getBlock(blockId: string): Promise<Block> {
-  const params: requestParams.RetrieveBlock = {
+  const params: GetBlockParameters = {
     block_id: blockId,
   }
 
@@ -357,7 +364,7 @@ export async function getBlock(blockId: string): Promise<Block> {
     async (bail) => {
       try {
         return (await client.blocks.retrieve(
-          params as any // eslint-disable-line @typescript-eslint/no-explicit-any
+          params
         )) as responses.RetrieveBlockResponse
       } catch (error: unknown) {
         if (error instanceof APIResponseError) {
@@ -434,7 +441,10 @@ export async function downloadFile(url: URL) {
   const filepath = `${dir}/${filename}`
 
   const writeStream = createWriteStream(filepath)
-  const source = Readable.fromWeb(res.body as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+  // fetch の Response.body は DOM の ReadableStream、Readable.fromWeb が受けるのは
+  // node:stream/web の ReadableStream。同名だが別宣言で構造的に互換にならないため
+  // ここだけ明示的に変換する（any で潰さない）
+  const source = Readable.fromWeb(res.body as WebReadableStream<Uint8Array>)
 
   // ヘッダを受け取った時点で fetch の signal は本文の転送に効かなくなる。
   // 一定時間データが流れてこなければ中断しないと、転送が停止したときに
@@ -552,7 +562,7 @@ export async function getDatabase(): Promise<Database> {
     return Promise.resolve(dbCache)
   }
 
-  const params: requestParams.RetrieveDatabase = {
+  const params: GetDatabaseParameters = {
     database_id: DATABASE_ID,
   }
 
@@ -560,7 +570,7 @@ export async function getDatabase(): Promise<Database> {
     async (bail) => {
       try {
         return (await client.databases.retrieve(
-          params as any // eslint-disable-line @typescript-eslint/no-explicit-any
+          params
         )) as responses.RetrieveDatabaseResponse
       } catch (error: unknown) {
         if (error instanceof APIResponseError) {
@@ -639,7 +649,7 @@ export async function getDatabase(): Promise<Database> {
 export async function _getDataSource(
   data_source_id: string
 ): Promise<responses.DataSourceObject> {
-  const params: requestParams.RetrieveDataSource = {
+  const params: GetDataSourceParameters = {
     data_source_id: data_source_id,
   }
 
@@ -647,7 +657,7 @@ export async function _getDataSource(
     async (bail) => {
       try {
         return (await client.dataSources.retrieve(
-          params as any // eslint-disable-line @typescript-eslint/no-explicit-any
+          params
         )) as responses.RetrieveDataSourceResponse
       } catch (error: unknown) {
         if (error instanceof APIResponseError) {
@@ -954,7 +964,7 @@ async function _getTableRows(blockId: string): Promise<TableRow[]> {
   if (fs.existsSync(`tmp/${blockId}.json`)) {
     results = JSON.parse(fs.readFileSync(`tmp/${blockId}.json`, 'utf-8'))
   } else {
-    const params: requestParams.RetrieveBlockChildren = {
+    const params: ListBlockChildrenParameters = {
       block_id: blockId,
     }
 
@@ -963,7 +973,7 @@ async function _getTableRows(blockId: string): Promise<TableRow[]> {
         async (bail) => {
           try {
             return (await client.blocks.children.list(
-              params as any // eslint-disable-line @typescript-eslint/no-explicit-any
+              params
             )) as responses.RetrieveBlockChildrenResponse
           } catch (error: unknown) {
             if (error instanceof APIResponseError) {
@@ -1019,7 +1029,7 @@ async function _getColumns(blockId: string): Promise<Column[]> {
   if (fs.existsSync(`tmp/${blockId}.json`)) {
     results = JSON.parse(fs.readFileSync(`tmp/${blockId}.json`, 'utf-8'))
   } else {
-    const params: requestParams.RetrieveBlockChildren = {
+    const params: ListBlockChildrenParameters = {
       block_id: blockId,
     }
 
@@ -1028,7 +1038,7 @@ async function _getColumns(blockId: string): Promise<Column[]> {
         async (bail) => {
           try {
             return (await client.blocks.children.list(
-              params as any // eslint-disable-line @typescript-eslint/no-explicit-any
+              params
             )) as responses.RetrieveBlockChildrenResponse
           } catch (error: unknown) {
             if (error instanceof APIResponseError) {
