@@ -1097,13 +1097,30 @@ async function _getSyncedBlockChildren(block: Block): Promise<Block[]> {
 
 function _validPageObject(pageObject: responses.PageObject): boolean {
   const prop = pageObject.properties
-  return (
-    !!prop.Page.title &&
-    prop.Page.title.length > 0 &&
-    !!prop.Slug.rich_text &&
-    prop.Slug.rich_text.length > 0 &&
-    !!prop.Date.date
-  )
+
+  const missing: string[] = []
+  if (!prop.Page.title || prop.Page.title.length === 0) {
+    missing.push('Page')
+  }
+  if (!prop.Slug.rich_text || prop.Slug.rich_text.length === 0) {
+    missing.push('Slug')
+  }
+  if (!prop.Date.date) {
+    missing.push('Date')
+  }
+
+  if (missing.length > 0) {
+    // Published にチェックが入っているのに必須プロパティが空の記事は、
+    // ここで黙って除外されるとサイトから消えたことに気づけない。
+    // ビルドは止めない（記事 1 件の記入漏れで全体を止めない）が、
+    // どのページが落ちたかは分かるようにする
+    console.error(
+      `Skipped a published page with empty required properties. page_id: ${pageObject.id}, missing: ${missing.join(', ')}`
+    )
+    return false
+  }
+
+  return true
 }
 
 function _buildPost(pageObject: responses.PageObject): Post {
