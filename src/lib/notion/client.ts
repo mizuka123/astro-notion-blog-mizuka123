@@ -55,6 +55,7 @@ import type {
   Text,
   ToDo,
   Toggle,
+  Unsupported,
   Video,
 } from '../interfaces'
 // NOTE: リクエストパラメータの型は SDK のものを直接使う。
@@ -638,8 +639,8 @@ export async function getDatabase(): Promise<Database> {
   const rawCover =
     ('cover' in dataSource ? dataSource.cover : null) || res.cover
 
-  const icon = _buildIcon(rawIcon)
-  const cover = _buildCover(rawCover)
+  const icon = _buildIcon(rawIcon, `database_id: ${DATABASE_ID}`)
+  const cover = _buildCover(rawCover, `database_id: ${DATABASE_ID}`)
 
   const database: Database = {
     Title: res.title.map((richText) => richText.plain_text).join(''),
@@ -686,10 +687,19 @@ export async function _getDataSource(
  * 3 箇所に散り、記事と callout では file と custom_emoji が漏れてアイコンが
  * 消えていた。ここに集約したうえで、SDK の判別可能 union を使うことで
  * 分岐の漏れがコンパイルエラーになるようにしている。
+ *
+ * 戻り値は 3 通り。未設定なら null、SDK が知らない type が来たら Unsupported、
+ * それ以外は FileObject / Emoji。未設定と未対応を同じ null にすると、
+ * アイコンが消えた原因を呼び出し側から追えなくなるため分けている。
+ *
+ * context には呼び出し元の識別子（page_id / block_id / database_id）を渡す。
+ * 未対応をログに出しても、どこで起きたか分からないと Notion 側を総当たりする
+ * ことになるため。client.ts の他の「黙って落とした」系のログと同じ方針。
  */
 function _buildIcon(
-  rawIcon: PageObjectResponse['icon'] | undefined
-): FileObject | Emoji | null {
+  rawIcon: PageObjectResponse['icon'] | undefined,
+  context: string
+): FileObject | Emoji | Unsupported | null {
   if (!rawIcon) {
     return null
   }
@@ -732,12 +742,15 @@ function _buildIcon(
       // 未対応の type が union に増えたらここでコンパイルエラーになる。
       // throw はしない。Notion が SDK 更新前に新しい種類を返した場合に
       // アイコン 1 つでビルド全体を止めるのは過剰なため（他の握り潰し対策と
-      // 同じ判断）。実行時はログを出して null を返す
+      // 同じ判断）。実行時はログを出したうえで、「未対応だった」ことを
+      // Unsupported として値で返す。null（未設定）と混ざると、アイコンが
+      // 消えたのが Notion の種別追加のせいなのか判別できなくなるため
       const unsupported: never = rawIcon
+      const rawType = (unsupported as { type: string }).type
       console.error(
-        `Unsupported icon type. type: ${(unsupported as { type: string }).type}`
+        `Unsupported icon type. The icon will not be rendered. type: ${rawType}, ${context}`
       )
-      return null
+      return { Type: 'unsupported', RawType: rawType }
     }
   }
 }
@@ -747,8 +760,9 @@ function _buildIcon(
  * SDK の PageCoverResponse は判別可能 union なので type で分岐する。
  */
 function _buildCover(
-  rawCover: PageObjectResponse['cover'] | undefined
-): FileObject | null {
+  rawCover: PageObjectResponse['cover'] | undefined,
+  context: string
+): FileObject | Unsupported | null {
   if (!rawCover) {
     return null
   }
@@ -765,11 +779,14 @@ function _buildCover(
         Url: rawCover.file.url,
       }
     default: {
+      // _buildIcon と同じ理由。未対応の type が増えたらコンパイルエラーにしつつ、
+      // 実行時はログを出して Unsupported を返し、未設定（null）と区別できるようにする
       const unsupported: never = rawCover
+      const rawType = (unsupported as { type: string }).type
       console.error(
-        `Unsupported cover type. type: ${(unsupported as { type: string }).type}`
+        `Unsupported cover type. The cover will not be rendered. type: ${rawType}, ${context}`
       )
-      return null
+      return { Type: 'unsupported', RawType: rawType }
     }
   }
 }
@@ -969,7 +986,10 @@ function _buildBlock(blockObject: BlockObjectResponse): Block {
       break
     case 'callout':
       if (blockObject.callout) {
-        const icon = _buildIcon(blockObject.callout.icon)
+        const icon = _buildIcon(
+          blockObject.callout.icon,
+          `block_id: ${blockObject.id}`
+        )
 
         const callout: Callout = {
           RichTexts: blockObject.callout.rich_text.map(_buildRichText),
@@ -1302,9 +1322,14 @@ function _validPageObject(
 function _buildPost(pageObject: PageObjectResponse): Post {
   const properties = pageObject.properties
 
-  const icon = _buildIcon(pageObject.icon)
-  const cover = _buildCover(pageObject.cover)
+  const icon = _buildIcon(pageObject.icon, `page_id: ${pageObject.id}`)
+  const cover = _buildCover(pageObject.cover, `page_id: ${pageObject.id}`)
 
+  // NOTE: FeaturedImage は _buildIcon / _buildCover を通さないため、未対応の
+  // type を Unsupported として区別する扱いの対象外にしている。消費側
+  // (PostFeaturedImage.astro / featured-image-downloader.ts / [slug].astro) は
+  // Type を見ず Url だけを使うので、Unsupported を混ぜると Url を持たない値が
+  // 流れ込んで壊れるだけで得が無い
   const featuredImageProp = _pageProp(properties, 'FeaturedImage', 'files')
   const featuredFile = featuredImageProp?.files[0]
   let featuredImage: FileObject | null = null

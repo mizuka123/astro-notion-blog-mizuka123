@@ -1,15 +1,15 @@
 export interface Database {
   Title: string
   Description: string
-  Icon: FileObject | Emoji | null
-  Cover: FileObject | null
+  Icon: FileObject | Emoji | Unsupported | null
+  Cover: FileObject | Unsupported | null
 }
 
 export interface Post {
   PageId: string
   Title: string
-  Icon: FileObject | Emoji | null
-  Cover: FileObject | null
+  Icon: FileObject | Emoji | Unsupported | null
+  Cover: FileObject | Unsupported | null
   Slug: string
   Date: string
   Tags: SelectProperty[]
@@ -122,6 +122,19 @@ export interface FileObject {
   ExpiryTime?: string
 }
 
+/**
+ * Notion が SDK 未対応の新しい種別を返したことを表すセンチネル。
+ *
+ * 「未設定」も「未対応」も null にしてしまうと、サイトからアイコンが
+ * 消えたときに、Notion 側で種別が増えたせいなのか元から設定が無いのかを
+ * 呼び出し側で区別できない。値として返すことで型レベルで区別できるようにする。
+ * RawType には Notion が返した生の type を入れ、原因を辿れるようにしておく。
+ */
+export interface Unsupported {
+  Type: 'unsupported'
+  RawType: string
+}
+
 export interface External {
   Url: string
 }
@@ -144,7 +157,7 @@ export interface Equation {
 
 export interface Callout {
   RichTexts: RichText[]
-  Icon: FileObject | Emoji | null
+  Icon: FileObject | Emoji | Unsupported | null
   Color: string
   Children?: Block[]
 }

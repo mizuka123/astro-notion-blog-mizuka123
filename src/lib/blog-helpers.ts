@@ -39,7 +39,7 @@ export const getDatabaseImageURLs = (
 
   let customIconURL: string | undefined
   const icon = database.Icon
-  // Icon は FileObject | Emoji なので、Url を持つ方であることを絞り込む
+  // Icon は FileObject | Emoji | Unsupported なので、Url を持つ方であることを絞り込む
   if (icon && icon.Type === 'file' && 'Url' in icon) {
     try {
       customIconURL = filePath(new URL(icon.Url))
