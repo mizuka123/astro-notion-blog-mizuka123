@@ -404,7 +404,6 @@ export async function downloadFile(url: URL) {
       method: 'GET',
       signal: controller.signal,
     })
-    clearTimeout(timeoutId)
 
     if (!res.ok) {
       throw new Error(`HTTP error! status: ${res.status}`)
@@ -414,8 +413,10 @@ export async function downloadFile(url: URL) {
       throw new Error('Response body is null')
     }
   } catch (err) {
-    console.log(err)
-    return Promise.resolve()
+    throw new Error(`Failed to fetch ${url.toString()}`, { cause: err })
+  } finally {
+    // fetch が失敗した場合も必ずタイマーを解放する
+    clearTimeout(timeoutId)
   }
 
   const dir = './public/notion/' + url.pathname.split('/').slice(-2)[0]
@@ -434,12 +435,59 @@ export async function downloadFile(url: URL) {
   if (res.headers.get('content-type') === 'image/jpeg') {
     stream = stream.pipe(rotate)
   }
+
   try {
-    return pipeline(stream, new ExifTransformer(), writeStream)
+    // pipeline は Promise を返すため await しないと書き込み時のエラーを捕捉できない
+    await pipeline(stream, new ExifTransformer(), writeStream)
   } catch (err) {
-    console.log(err)
-    writeStream.end()
-    return Promise.resolve()
+    // 途中まで書かれた壊れたファイルが残ると、次回以降のビルドで
+    // ダウンロード済みとして扱われてしまうため削除する
+    fs.rmSync(filepath, { force: true })
+    throw new Error(`Failed to write ${filepath} from ${url.toString()}`, {
+      cause: err,
+    })
+  }
+}
+
+/**
+ * 渡された URL をすべてダウンロードし、1 件でも失敗したらエラーを投げる。
+ *
+ * 最初の失敗で打ち切らず全件を試すので、1 回のビルドで失敗した URL を
+ * すべて列挙できる。不正な URL もダウンロードできない以上は失敗として扱う
+ * （取りこぼすと本番に壊れた <img> が出るため）。
+ */
+export async function downloadFiles(
+  label: string,
+  rawUrls: string[]
+): Promise<void> {
+  const urls: URL[] = []
+  const failures: string[] = []
+
+  rawUrls.forEach((rawUrl) => {
+    try {
+      urls.push(new URL(rawUrl))
+    } catch (err) {
+      console.error(`[${label}] invalid URL: ${rawUrl}`)
+      console.error(err)
+      failures.push(`${rawUrl} (invalid URL)`)
+    }
+  })
+
+  const results = await Promise.allSettled(urls.map((url) => downloadFile(url)))
+
+  results.forEach((result, i) => {
+    if (result.status === 'rejected') {
+      console.error(`[${label}] download failed: ${urls[i].toString()}`)
+      console.error(result.reason)
+      failures.push(urls[i].toString())
+    }
+  })
+
+  if (failures.length > 0) {
+    throw new Error(
+      `[${label}] ${failures.length}/${rawUrls.length} files failed to download:\n` +
+        failures.map((failure) => `  - ${failure}`).join('\n')
+    )
   }
 }
 

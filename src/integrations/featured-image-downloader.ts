@@ -1,5 +1,5 @@
 import type { AstroIntegration } from 'astro'
-import { getAllPosts, downloadFile } from '../lib/notion/client'
+import { getAllPosts, downloadFiles } from '../lib/notion/client'
 
 export default (): AstroIntegration => ({
   name: 'featured-image-downloader',
@@ -7,23 +7,11 @@ export default (): AstroIntegration => ({
     'astro:build:start': async () => {
       const posts = await getAllPosts()
 
-      await Promise.all(
-        posts.map((post) => {
-          if (!post.FeaturedImage || !post.FeaturedImage.Url) {
-            return Promise.resolve()
-          }
+      const urls = posts
+        .map((post) => post.FeaturedImage?.Url)
+        .filter((url): url is string => !!url)
 
-          let url!: URL
-          try {
-            url = new URL(post.FeaturedImage.Url)
-          } catch {
-            console.log('Invalid FeaturedImage URL: ', post.FeaturedImage?.Url)
-            return Promise.resolve()
-          }
-
-          return downloadFile(url)
-        })
-      )
+      await downloadFiles('featured-image-downloader', urls)
     },
   },
 })
