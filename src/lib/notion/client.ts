@@ -1334,15 +1334,20 @@ function _buildPost(pageObject: PageObjectResponse): Post {
   const featuredFile = featuredImageProp?.files[0]
   let featuredImage: FileObject | null = null
   if (featuredFile) {
-    // SDK の files の要素は external / file の判別可能 union なので type で分ける
+    // SDK の files の要素は external / file の判別可能 union なので type で分ける。
+    // Type に入れるのは featuredImageProp.type ではなく featuredFile.type。
+    // 前者はプロパティの型なので常に 'files' で、FileObject.Type が期待する
+    // 'external' / 'file' ではない（元から値が誤っていた）。FileObject.Type を
+    // リテラル型に絞ったことで型エラーとして表面化した。消費側は Url しか
+    // 読まないため、表示上の挙動は変わらない
     if (featuredFile.type === 'external') {
       featuredImage = {
-        Type: featuredImageProp.type,
+        Type: featuredFile.type,
         Url: featuredFile.external.url,
       }
     } else if (featuredFile.type === 'file') {
       featuredImage = {
-        Type: featuredImageProp.type,
+        Type: featuredFile.type,
         Url: featuredFile.file.url,
         ExpiryTime: featuredFile.file.expiry_time,
       }

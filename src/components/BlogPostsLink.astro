@@ -22,7 +22,9 @@ const { heading, posts } = Astro.props
           <li>
             <a
               href={getPostLink(post.Slug)}
-              title={`${post.Icon?.Emoji || ''}${post.Title}`}
+              title={`${
+                post.Icon?.Type === 'emoji' ? post.Icon.Emoji : ''
+              }${post.Title}`}
             >
               {post.Icon && post.Icon.Type === 'emoji' ? (
                 <>
