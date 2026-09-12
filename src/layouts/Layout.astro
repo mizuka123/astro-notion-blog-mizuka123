@@ -13,11 +13,12 @@ import SiteHead from '../components/SiteHead.astro'
 import SearchModal from '../components/SearchModal.astro'
 import SearchButton from '../components/SearchButton.astro'
 
+// すべて省略可能。分割代入側でデフォルト値を与えている
 export interface Props {
-  title: string
-  description: string
-  path: string
-  ogImage: string
+  title?: string
+  description?: string
+  path?: string
+  ogImage?: string
 }
 
 const { title = '', description = '', path = '/', ogImage = '' } = Astro.props

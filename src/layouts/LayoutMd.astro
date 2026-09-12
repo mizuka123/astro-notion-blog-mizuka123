@@ -1,4 +1,6 @@
 ---
+import type { MarkdownLayoutProps } from 'astro'
+import type { Post } from '../lib/interfaces'
 import { PUBLIC_GA_TRACKING_ID, ENABLE_LIGHTBOX } from '../server-constants'
 import {
   getPosts,
@@ -20,19 +22,32 @@ import BlogPostsLink from '../components/BlogPostsLink.astro'
 import BlogTagsLink from '../components/BlogTagsLink.astro'
 import styles from '../styles/blog.module.css'
 
-const { frontmatter } = Astro.props;
+// src/pages/archive/*.md の frontmatter のうち、このレイアウトが読むものだけ。
+// 全 609 件が title と date を持ち、coverImage は 538 件のみ。
+// NOTE: archive/index.astro にも同じ md 群を対象にした別の型宣言があるが、
+// あちらが読むのは title / date / draft で、こちらとは中身が違う。
+// 名前が衝突しないよう別名にしてある
+interface ArchiveLayoutFrontmatter {
+  title: string
+  date: string
+  coverImage?: string
+}
+
+// Markdown レイアウトなので frontmatter / file / url などは Astro が渡す。
+// title 等 4 つは分割代入側で frontmatter からデフォルト値を与えている
+export type Props = MarkdownLayoutProps<ArchiveLayoutFrontmatter> & {
+  title?: string
+  description?: string
+  path?: string
+  ogImage?: string
+}
+
+const { frontmatter } = Astro.props
 const [rankedPosts, tags, recentPosts] = await Promise.all([
   getRankedPosts(),
   getAllTags(),
   getPosts(5),
 ])
-
-export interface Props {
-  title: string
-  description: string
-  path: string
-  ogImage: string
-}
 
 const { title = frontmatter.title, description = '', path = frontmatter.url, ogImage = frontmatter.coverImage } = Astro.props
 
@@ -42,9 +57,12 @@ const { coverImageURL, customIconURL } = getDatabaseImageURLs(database)
 
 const asidePaddingTop = coverImageURL ? '200px' : '60px'
 
-let post = new Object()
-post.Date = frontmatter.date
-post.Title = frontmatter.title
+// PostDate に渡すためのオブジェクト。Post 全体は必要ないので、
+// 実際に使う 2 つだけを持つ形で宣言する
+const post: Pick<Post, 'Date' | 'Title'> = {
+  Date: frontmatter.date,
+  Title: frontmatter.title,
+}
 ---
 
 <!DOCTYPE html>

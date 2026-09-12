@@ -31,9 +31,10 @@ import LinkToPage from './notion-blocks/LinkToPage.astro'
 
 export interface Props {
   blocks: interfaces.Block[]
-  isRoot: boolean
-  level: number
-  headings: interfaces.Block[]
+  // 以下は分割代入側でデフォルト値を与えている
+  isRoot?: boolean
+  level?: number
+  headings?: interfaces.Block[]
 }
 
 const {
