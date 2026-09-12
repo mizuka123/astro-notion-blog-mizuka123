@@ -175,6 +175,11 @@ const bookmarkURLMap = await buildURLToHTMLMap(bookmarkURLs)
       case 'link_to_page':
         return <LinkToPage block={block} />
     }
+    // 未対応のブロック種別は描画できない。黙って消えると記事から内容が
+    // 抜け落ちたことに気づけないため、どのブロックだったかをログに出す
+    console.error(
+      `Skipped rendering an unsupported block. block_id: ${block.Id}, type: ${block.Type}`
+    )
     return null
   })
 }
