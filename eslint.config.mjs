@@ -17,6 +17,10 @@ const compat = new FlatCompat({
 export default defineConfig([
   {
     extends: compat.extends(
+      // eslint:recommended を入れていなかったため、ESLint 本体のルールが
+      // 一切効いていなかった。`let icon` と `const icon` の二重宣言を
+      // lint が素通りし、astro check のビルドで初めて気づいた実例がある
+      'eslint:recommended',
       'plugin:@typescript-eslint/recommended',
       'plugin:astro/recommended'
     ),
@@ -28,6 +32,13 @@ export default defineConfig([
     rules: {
       '@typescript-eslint/no-unused-vars': 'error',
       '@typescript-eslint/no-explicit-any': 'error',
+      // ESLint 本体の no-redeclare は @typescript-eslint/recommended が
+      // 無効化するため、TypeScript 版を明示的に有効にする。
+      // NOTE: この無効化は FlatCompat（compat.extends）を通した legacy 解決の
+      // 結果としてのみ現れ、プラグインの configs.recommended.rules を直接見ても
+      // 分からない。将来 FlatCompat を外して native flat config に移行する際は、
+      // この行がまだ必要かを compat 抜きで再確認すること
+      '@typescript-eslint/no-redeclare': 'error',
     },
   },
   {

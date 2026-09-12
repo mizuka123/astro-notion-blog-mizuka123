@@ -16,7 +16,7 @@ const { trackingId = '' } = Astro.props
       />
       <script is:inline define:vars={{ trackingId }}>
         window.dataLayer = window.dataLayer || []; function gtag()
-        {dataLayer.push(arguments)}
+        {window.dataLayer.push(arguments)}
         gtag('js', new Date()); gtag('config', trackingId);
       </script>
     </>
