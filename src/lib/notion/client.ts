@@ -616,45 +616,8 @@ export async function getDatabase(): Promise<Database> {
   const rawIcon = dataSource.icon || res.icon
   const rawCover = dataSource.cover || res.cover
 
-  let icon: FileObject | Emoji | null = null
-  if (rawIcon) {
-    if (rawIcon.type === 'emoji' && 'emoji' in rawIcon) {
-      icon = {
-        Type: rawIcon.type,
-        Emoji: rawIcon.emoji,
-      }
-    } else if (rawIcon.type === 'external' && 'external' in rawIcon) {
-      icon = {
-        Type: rawIcon.type,
-        Url: rawIcon.external?.url || '',
-      }
-    } else if (rawIcon.type === 'file' && 'file' in rawIcon) {
-      icon = {
-        Type: rawIcon.type,
-        Url: rawIcon.file?.url || '',
-      }
-    } else if (rawIcon.type === 'icon' && 'icon' in rawIcon) {
-      // Notion 標準アイコンは名前と色で返るため、画像 URL を組み立てて
-      // external として扱う (例: camera + gray -> camera_gray.svg)
-      icon = {
-        Type: 'external',
-        Url: `https://www.notion.so/icons/${rawIcon.icon.name}_${rawIcon.icon.color}.svg`,
-      }
-    } else if (rawIcon.type === 'custom_emoji' && 'custom_emoji' in rawIcon) {
-      icon = {
-        Type: 'external',
-        Url: rawIcon.custom_emoji.url || '',
-      }
-    }
-  }
-
-  let cover: FileObject | null = null
-  if (rawCover) {
-    cover = {
-      Type: rawCover.type,
-      Url: rawCover.external?.url || rawCover?.file?.url || '',
-    }
-  }
+  const icon = _buildIcon(rawIcon)
+  const cover = _buildCover(rawCover)
 
   const database: Database = {
     Title: res.title.map((richText) => richText.plain_text).join(''),
@@ -708,6 +671,87 @@ export async function _getDataSource(
  * サイト全体がビルド不能になってしまうため（_getSyncedBlockChildren と同じ判断）。
  * ただしどのブロックが落ちたかは分かるようにする。
  */
+/**
+ * Notion のアイコンは emoji / external / file / icon（Notion 標準アイコン）/
+ * custom_emoji の 5 種類がある。responses.ts の型は type: string + 各フィールドが
+ * 任意という「なんでも入る箱」なので、分岐の漏れをコンパイラが検出できない。
+ * 実際、データベース側だけ 5 種類に対応し、記事と callout は emoji / external の
+ * 2 種類しか見ておらず、file や custom_emoji のアイコンが消えていた。
+ * 3 箇所に散っていた分岐をここに集約する。
+ */
+function _buildIcon(
+  rawIcon:
+    | responses.FileObject
+    | responses.Emoji
+    | responses.NoticonIcon
+    | responses.CustomEmojiIcon
+    | null
+    | undefined
+): FileObject | Emoji | null {
+  if (!rawIcon) {
+    return null
+  }
+
+  if (rawIcon.type === 'emoji' && 'emoji' in rawIcon) {
+    return {
+      Type: rawIcon.type,
+      Emoji: rawIcon.emoji,
+    }
+  }
+  if (rawIcon.type === 'external' && 'external' in rawIcon) {
+    return {
+      Type: rawIcon.type,
+      Url: rawIcon.external?.url || '',
+    }
+  }
+  if (rawIcon.type === 'file' && 'file' in rawIcon) {
+    // NOTE: 記事と callout については、ここで値を返してもまだ表示されない。
+    // PostTitle.astro / BlogPostsLink.astro / Callout.astro / Mention.astro に
+    // Type === 'file' の分岐が無いため。分岐を足すだけでは不十分で、file 型の
+    // URL は署名付きで失効するため、データベースのアイコン
+    // (custom-icon-downloader) や FeaturedImage と同様にローカルへ
+    // ダウンロードする仕組みが要る。別途対応する
+    return {
+      Type: rawIcon.type,
+      Url: rawIcon.file?.url || '',
+    }
+  }
+  if (rawIcon.type === 'icon' && 'icon' in rawIcon) {
+    // Notion 標準アイコンは名前と色で返るため、画像 URL を組み立てて
+    // external として扱う (例: camera + gray -> camera_gray.svg)
+    return {
+      Type: 'external',
+      Url: `https://www.notion.so/icons/${rawIcon.icon.name}_${rawIcon.icon.color}.svg`,
+    }
+  }
+  if (rawIcon.type === 'custom_emoji' && 'custom_emoji' in rawIcon) {
+    return {
+      Type: 'external',
+      Url: rawIcon.custom_emoji.url || '',
+    }
+  }
+
+  console.error(`Unsupported icon type. type: ${rawIcon.type}`)
+  return null
+}
+
+/**
+ * カバー画像は external と file の 2 種類がある。記事側は file の場合に
+ * Url が空文字になっていたため、こちらも集約する。
+ */
+function _buildCover(
+  rawCover: responses.FileObject | null | undefined
+): FileObject | null {
+  if (!rawCover) {
+    return null
+  }
+
+  return {
+    Type: rawCover.type,
+    Url: rawCover.external?.url || rawCover.file?.url || '',
+  }
+}
+
 function _warnUnreadableBlocks(
   parentBlockId: string,
   blockObjects: responses.BlockObject[]
@@ -892,26 +936,7 @@ function _buildBlock(blockObject: responses.BlockObject): Block {
       break
     case 'callout':
       if (blockObject.callout) {
-        let icon: FileObject | Emoji | null = null
-        if (blockObject.callout.icon) {
-          if (
-            blockObject.callout.icon.type === 'emoji' &&
-            'emoji' in blockObject.callout.icon
-          ) {
-            icon = {
-              Type: blockObject.callout.icon.type,
-              Emoji: blockObject.callout.icon.emoji,
-            }
-          } else if (
-            blockObject.callout.icon.type === 'external' &&
-            'external' in blockObject.callout.icon
-          ) {
-            icon = {
-              Type: blockObject.callout.icon.type,
-              Url: blockObject.callout.icon.external?.url || '',
-            }
-          }
-        }
+        const icon = _buildIcon(blockObject.callout.icon)
 
         const callout: Callout = {
           RichTexts: blockObject.callout.rich_text.map(_buildRichText),
@@ -1168,6 +1193,17 @@ async function _getSyncedBlockChildren(block: Block): Promise<Block[]> {
 function _validPageObject(pageObject: responses.PageObject): boolean {
   const prop = pageObject.properties
 
+  if (!prop) {
+    // dataSources.query の results には、統合がそのページを読めない場合に
+    // id だけの partial なページが混ざる（properties が無い）。
+    // responses.ts は full のみをモデル化しているため型では検出できず、
+    // 素通りすると次の行で page_id も原因も分からない TypeError になる
+    console.error(
+      `Skipped a page that could not be read. Check the integration's access to it in Notion. page_id: ${pageObject.id}`
+    )
+    return false
+  }
+
   const missing: string[] = []
   if (!prop.Page.title || prop.Page.title.length === 0) {
     missing.push('Page')
@@ -1196,31 +1232,8 @@ function _validPageObject(pageObject: responses.PageObject): boolean {
 function _buildPost(pageObject: responses.PageObject): Post {
   const prop = pageObject.properties
 
-  let icon: FileObject | Emoji | null = null
-  if (pageObject.icon) {
-    if (pageObject.icon.type === 'emoji' && 'emoji' in pageObject.icon) {
-      icon = {
-        Type: pageObject.icon.type,
-        Emoji: pageObject.icon.emoji,
-      }
-    } else if (
-      pageObject.icon.type === 'external' &&
-      'external' in pageObject.icon
-    ) {
-      icon = {
-        Type: pageObject.icon.type,
-        Url: pageObject.icon.external?.url || '',
-      }
-    }
-  }
-
-  let cover: FileObject | null = null
-  if (pageObject.cover) {
-    cover = {
-      Type: pageObject.cover.type,
-      Url: pageObject.cover.external?.url || '',
-    }
-  }
+  const icon = _buildIcon(pageObject.icon)
+  const cover = _buildCover(pageObject.cover)
 
   let featuredImage: FileObject | null = null
   if (prop.FeaturedImage.files && prop.FeaturedImage.files.length > 0) {
