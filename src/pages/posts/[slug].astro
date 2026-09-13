@@ -11,11 +11,7 @@ import {
   getAllBlocksByBlockId,
   downloadFiles,
 } from '../../lib/notion/client.ts'
-import {
-  getPostLink,
-  filePath,
-  extractTargetBlocks,
-} from '../../lib/blog-helpers.ts'
+import { filePath, extractTargetBlocks } from '../../lib/blog-helpers.ts'
 import Layout from '../../layouts/Layout.astro'
 import PostDate from '../../components/PostDate.astro'
 import PostTags from '../../components/PostTags.astro'
@@ -89,12 +85,18 @@ let ogImage = ''
 if (post.FeaturedImage && post.FeaturedImage.Url) {
   ogImage = new URL(filePath(new URL(post.FeaturedImage.Url)), Astro.site)
 }
+
+// 下の Layout に渡す path は「BASE_PATH を含まない生パス」であること。
+// canonical / og:url は SiteHead が getNavLink(path) で組み立てており、
+// getNavLink 側が BASE_PATH を足すため、ここで getPostLink()（BASE_PATH 込み）
+// を渡すと二重に付いて /blog/blog/posts/<slug> のように壊れる。
+// 一覧系ページ（/posts/page/N など）もすべて生パスを渡している
 ---
 
 <Layout
   title={post.Title}
   description={post.Excerpt}
-  path={getPostLink(post.Slug)}
+  path={`/posts/${post.Slug}`}
   ogImage={ogImage}
 >
   <div slot="main" class={styles.main}>
