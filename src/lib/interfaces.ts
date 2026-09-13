@@ -103,9 +103,15 @@ export interface Image {
   Height?: number
 }
 
+/**
+ * File? があるのは、Notion にアップロードした動画（type: 'file'）を
+ * 扱うため。Image と同じく、file タイプの URL は署名付きで失効するので
+ * ビルド時にローカルへ落とす必要があり、そのために URL を保持する
+ */
 export interface Video {
   Caption: RichText[]
   Type: string
+  File?: FileObject
   External?: External
 }
 

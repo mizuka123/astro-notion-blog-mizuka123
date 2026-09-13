@@ -911,6 +911,17 @@ function _buildBlock(blockObject: BlockObjectResponse): Block {
           blockObject.video.external
         ) {
           video.External = { Url: blockObject.video.external.url }
+        } else if (
+          blockObject.video.type === 'file' &&
+          blockObject.video.file
+        ) {
+          // アップロードした動画。image と同じく URL は署名付きで失効するため
+          // ExpiryTime も持っておき、ビルド時のダウンロード経路で使う
+          video.File = {
+            Type: blockObject.video.type,
+            Url: blockObject.video.file.url,
+            ExpiryTime: blockObject.video.file.expiry_time,
+          }
         }
         block.Video = video
       }

@@ -44,23 +44,35 @@ const [blocks, allPosts, rankedPosts, recentPosts, tags, postsHavingSameTag] =
     getPostsByTag(post.Tags[0]?.name, 6),
   ])
 
+// video も同じ経路で落とす。アップロードした動画（file タイプ）の URL は
+// 署名付きで失効するため、ローカルに持っておかないと描画できない。
+// ここならレンダリングに使う blocks をそのまま流用でき、
+// 「ダウンロードしていない URL を src に書く」隙ができない
+//
+// 注意: downloadFiles は REQUEST_TIMEOUT_MS（src/server-constants.ts、
+// 既定 10 秒）でレスポンス待ちと転送の停滞を打ち切る。動画は画像より遥かに
+// 大きく転送も長いので、回線が細い・不安定な環境では画像より停滞判定に
+// 引っかかりやすい。打ち切られると downloadFiles が throw してビルドが
+// 失敗するため、その場合は環境変数 REQUEST_TIMEOUT_MS を伸ばして対処する
+// （定数の既定値を上げると他のダウンロードにも効いてしまうので変えない）
 const fileAtacchedBlocks = extractTargetBlocks('image', blocks)
   .concat(extractTargetBlocks('file', blocks))
+  .concat(extractTargetBlocks('video', blocks))
   .filter((block) => {
     if (!block) {
       return false
     }
-    const imageOrFile = block.Image || block.File
+    const imageOrFile = block.Image || block.File || block.Video
     return imageOrFile && imageOrFile.File && imageOrFile.File.Url
   })
 
 // Download files
 const fileUrls = await Promise.all(
   fileAtacchedBlocks.map(async (block) => {
-    const expiryTime = (block.Image || block.File).File.ExpiryTime
+    const expiryTime = (block.Image || block.File || block.Video).File.ExpiryTime
     const latestBlock =
       Date.parse(expiryTime) > Date.now() ? block : await getBlock(block.Id)
-    return (latestBlock.Image || latestBlock.File).File.Url
+    return (latestBlock.Image || latestBlock.File || latestBlock.Video).File.Url
   })
 )
 
