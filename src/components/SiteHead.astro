@@ -50,6 +50,31 @@ const siteOGImage = new URL(
   integrity="sha384-vKruj+a13U8yHIkAyGgK1J3ArTLzrFGBbBc0tDp4ad/EyewESeXE/Iv67Aj8gKZ0"
   crossorigin="anonymous"
 />
+{
+  /*
+    ValueCommerce LinkSwitch。ページ内の提携ショップへの素の URL を、実行時に
+    アフィリエイトリンクへ自動変換する。記事ごとに ASP の管理画面でリンクを
+    作る往復が要らなくなる。
+
+    is:inline が必須。Astro は src の無い <script> を既定でモジュールとして
+    バンドルするため、付けないと vc_pid がモジュールスコープに閉じ込められ、
+    グローバルを見に来る vcdal.js から参照できない。スクリプトは読み込まれて
+    いるのにリンクだけ変換されない、という気づきにくい壊れ方をする。
+
+    var ではなく window に直接代入しているのは、外部スクリプトが読む
+    グローバルであることを明示するため（トップレベルの var と等価）。
+    vc_pid の定義が先に実行される必要があるので、2 つの順序は変えないこと
+  */
+}
+<script is:inline type="text/javascript">
+  window.vc_pid = '892700549'
+</script>
+<script
+  is:inline
+  type="text/javascript"
+  src="//aml.valuecommerce.com/vcdal.js"
+  async></script>
+
 <script type="text/javascript" src="//mlb.valuecommerce.com/mylinkbox.js" async></script>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8748150415175448"
 crossorigin="anonymous"></script>
