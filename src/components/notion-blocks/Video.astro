@@ -1,6 +1,10 @@
 ---
 import * as interfaces from '../../lib/interfaces.ts'
-import { isYouTubeURL, parseYouTubeVideoId } from '../../lib/blog-helpers.ts'
+import {
+  filePath,
+  isYouTubeURL,
+  parseYouTubeVideoId,
+} from '../../lib/blog-helpers.ts'
 import Caption from './Caption.astro'
 
 export interface Props {
@@ -9,30 +13,68 @@ export interface Props {
 
 const { block } = Astro.props
 
-let url: URL
-try {
-  url = new URL(block.Video.External?.Url)
-} catch (err) {
-  // 下流で url が undefined のまま使われるため、どのブロックの URL が
-  // 不正だったのかを残す
+// File（アップロード動画）と External（YouTube 等）を先に分けているのは、
+// file タイプでは External が undefined になり、External の URL を
+// 無条件に parse していた以前の実装では必ず catch に落ちて
+// 「URL が不正」という誤ったエラーログが出ていたため
+let videoSrc = ''
+let youTubeURL: URL | undefined
+
+if (block.Video?.File) {
+  // file タイプの URL は署名付きで失効するため、[slug].astro でビルド時に
+  // 落としたローカルのパスを参照する（Image.astro と同じ扱い）
+  try {
+    videoSrc = filePath(new URL(block.Video.File.Url))
+  } catch (err) {
+    console.error(
+      `Invalid video file URL. The video will not be rendered. block_id: ${block.Id}, url: ${block.Video.File.Url}`
+    )
+    console.error(err)
+  }
+} else if (block.Video?.External) {
+  try {
+    const url = new URL(block.Video.External.Url)
+    if (isYouTubeURL(url)) {
+      youTubeURL = url
+    } else {
+      // YouTube 以外の外部動画は未対応。無言で空の <div> になると
+      // 原因が分からないので、どのブロックだったかを残す
+      console.error(
+        `Unsupported external video URL. The video will not be rendered. block_id: ${block.Id}, url: ${block.Video.External.Url}`
+      )
+    }
+  } catch (err) {
+    console.error(
+      `Invalid video URL. The video will not be rendered. block_id: ${block.Id}, url: ${block.Video.External.Url}`
+    )
+    console.error(err)
+  }
+} else {
   console.error(
-    `Invalid video URL. block_id: ${block.Id}, url: ${block.Video?.External?.Url}`
+    `The video block has neither a file nor an external URL. The video will not be rendered. block_id: ${block.Id}, type: ${block.Video?.Type}`
   )
-  console.error(err)
 }
+
+// 以下のテンプレートで <video> に playsinline を付けるのは、iOS で全画面
+// 再生を強制されるのを避けるため。preload="metadata" は、動画ファイルが
+// 重く記事を開いただけで本体をダウンロードさせたくないため
 ---
 
 <div class="video">
   <div>
     {
-      isYouTubeURL(url) && (
+      youTubeURL ? (
         <iframe
-          src={`https://www.youtube.com/embed/${parseYouTubeVideoId(url)}`}
+          src={`https://www.youtube.com/embed/${parseYouTubeVideoId(youTubeURL)}`}
           title="YouTube video player"
           frameborder="0"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
           allowfullscreen
         />
+      ) : (
+        videoSrc && (
+          <video src={videoSrc} controls playsinline preload="metadata" />
+        )
       )
     }
   </div>
@@ -47,9 +89,18 @@ try {
     width: 100%;
     height: 340px;
   }
+  /* iframe と同じ箱に収める。高さは動画の縦横比に任せる */
+  .video div:first-child video {
+    display: block;
+    width: 100%;
+    max-height: 340px;
+  }
   @media (max-width: 640px) {
     .video div:first-child iframe {
       height: 220px;
+    }
+    .video div:first-child video {
+      max-height: 220px;
     }
   }
 </style>
