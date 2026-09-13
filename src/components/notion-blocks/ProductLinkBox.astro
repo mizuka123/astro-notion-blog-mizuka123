@@ -1,0 +1,98 @@
+---
+import { buildProductLinks } from '../../lib/affiliate.ts'
+
+export interface Props {
+  productName: string
+}
+
+const { productName } = Astro.props
+
+const links = buildProductLinks(productName)
+
+// 商品名は Notion 由来（＝自分で書いたとはいえ外部データ）なので set:html は使わない。
+// 下のテンプレートは通常の式展開だけで組み立てており、Astro が自動で
+// エスケープするため、商品名に < や " が入っても HTML が壊れない
+---
+
+<div class="product-link-box">
+  <p class="product-name">{productName}</p>
+  <ul class="shops">
+    {
+      links.map((link) => (
+        <li>
+          <a
+            href={link.url}
+            target="_blank"
+            rel="nofollow sponsored noopener noreferrer"
+          >
+            {link.name}
+          </a>
+        </li>
+      ))
+    }
+  </ul>
+</div>
+
+<style>
+  .product-link-box {
+    box-sizing: border-box;
+    margin: 0.8rem auto;
+    padding: 14px 12px;
+    width: 100%;
+    max-width: 100%;
+    border: 1px solid rgba(55, 53, 47, 0.16);
+    border-radius: 3px;
+    background: rgba(235, 236, 237, 0.35);
+  }
+  .product-name {
+    margin: 0 0 10px;
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1.5rem;
+    color: var(--fg);
+    /* 型番のような長い連続英数字でもボックスをはみ出させない */
+    overflow-wrap: anywhere;
+  }
+  .shops {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  /* grid の子はデフォルトで min-width:auto のため、中身が縮まずに
+     行全体を押し広げて横スクロールを生む。0 にして折り返させる */
+  .shops > li {
+    min-width: 0;
+  }
+  .shops > li > a {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 40px;
+    padding: 6px 4px;
+    border: 1px solid rgba(55, 53, 47, 0.2);
+    border-radius: var(--radius);
+    background: var(--bg);
+    color: var(--fg);
+    font-size: 0.8rem;
+    line-height: 1.3;
+    text-align: center;
+    text-decoration: none;
+    /* 「Yahoo!ショッピング」のような長いラベルを単語途中でも折り返す。
+       これが無いと狭い画面でボタンが横に溢れる */
+    overflow-wrap: anywhere;
+  }
+  .shops > li > a:hover {
+    background: rgba(235, 236, 237, 0.6);
+  }
+  @media (max-width: 640px) {
+    /* 4 列のままだと 1 列あたり 70px 程度になりラベルが収まらないので 2 列にする */
+    .shops {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+</style>

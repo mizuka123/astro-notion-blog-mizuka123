@@ -28,6 +28,8 @@ import SyncedBlock from './notion-blocks/SyncedBlock.astro'
 import Toggle from './notion-blocks/Toggle.astro'
 import File from './notion-blocks/File.astro'
 import LinkToPage from './notion-blocks/LinkToPage.astro'
+import ProductLinkBox from './notion-blocks/ProductLinkBox.astro'
+import { extractProductName } from '../lib/affiliate.ts'
 
 export interface Props {
   blocks: interfaces.Block[]
@@ -130,6 +132,24 @@ const bookmarkURLMap = await buildURLToHTMLMap(bookmarkURLs)
             || block.Paragraph.RichTexts[0].PlainText.indexOf('valuecommerce') != -1
           ){
             return <Fragment set:html={block.Paragraph.RichTexts[0].PlainText}/>
+          }
+        }
+        // 上の MyLinkBox 判定が RichTexts[0] しか見ていないのに対し、
+        // ここでは全 RichText を連結してから判定する。Notion は 1 つの段落を
+        // 書式の変わり目で複数の RichText に分割することがあり
+        // （「商品リンク:」だけ太字になった等）、[0] だけでは
+        // 商品名が欠けたり判定自体が外れたりするため。
+        // MyLinkBox の分岐より後に置いてあるので、既存の生 HTML 段落の挙動は変わらない
+        {
+          // ?. と ?? [] は astro check の「possibly undefined」を増やさないため。
+          // 上の既存分岐は同じ型エラーを 4 件出しているが、そこは挙動を変えたくないので触らない
+          const productName = extractProductName(
+            (block.Paragraph?.RichTexts ?? [])
+              .map((richText: interfaces.RichText) => richText.PlainText)
+              .join('')
+          )
+          if (productName) {
+            return <ProductLinkBox productName={productName} />
           }
         }
         return <Paragraph block={block} headings={headings} />
