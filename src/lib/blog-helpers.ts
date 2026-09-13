@@ -2,11 +2,14 @@ import { BASE_PATH, REQUEST_TIMEOUT_MS } from '../server-constants'
 import type {
   Block,
   Database,
+  Emoji,
+  FileObject,
   Heading1,
   Heading2,
   Heading3,
   RichText,
   Column,
+  Unsupported,
 } from './interfaces'
 import { pathJoin } from './utils'
 
@@ -50,6 +53,53 @@ export const getDatabaseImageURLs = (
   }
 
   return { coverImageURL, customIconURL }
+}
+
+/**
+ * アイコンを <img> で表示するときの src を返す。表示できないものは undefined。
+ *
+ * file タイプ（Notion にアップロードされたファイル）の Url は署名付きで、
+ * 時間が経つと失効する。ビルド時にダウンロードしたものをそのまま貼ると
+ * しばらくして画像が壊れるため、ビルド時にローカルへ落としてある前提で
+ * filePath() が返すローカルパスに差し替える。
+ * external は Notion 外部のホストにある URL なのでそのまま使ってよい。
+ *
+ * emoji はテキストとして描画するもので <img> では出せない。unsupported と
+ * 未設定も含め、そういうものは undefined を返して呼び出し側のフォールバック
+ * （絵文字やタイトルのみの表示）に倒せるようにしている。
+ *
+ * context には呼び出し元の識別子（page_id / block_id）を渡す。アイコンは
+ * 記事や callout の数だけあるので、どれが壊れているか分からないログでは
+ * 追いようがない。client.ts の他のログと同じ方針。
+ */
+export const getIconImageURL = (
+  icon: FileObject | Emoji | Unsupported | null,
+  context: string
+): string | undefined => {
+  if (!icon) {
+    return undefined
+  }
+
+  if (icon.Type === 'external') {
+    return icon.Url
+  }
+
+  if (icon.Type === 'file') {
+    try {
+      return filePath(new URL(icon.Url))
+    } catch {
+      // URL が壊れているとローカルパスを導出できない。握り潰すと
+      // 「アイコンだけ出ない」原因が追えなくなるのでログには残す。
+      // 署名付き URL はクエリに署名を含み、ビルドログは保存されるので
+      // クエリは落とす（client.ts の displayUrl と同じ理由）
+      console.error(
+        `Invalid icon URL. The icon will not be rendered. url: ${icon.Url.split('?')[0]}, ${context}`
+      )
+      return undefined
+    }
+  }
+
+  return undefined
 }
 
 export const extractTargetBlocks = (

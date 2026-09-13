@@ -1,7 +1,7 @@
 ---
 import { Post } from '../../lib/interfaces.ts'
 import { getPostByPageId } from '../../lib/notion/client'
-import { getPostLink } from '../../lib/blog-helpers.ts'
+import { getIconImageURL, getPostLink } from '../../lib/blog-helpers.ts'
 import '../../styles/notion-color.css'
 import arrow from '../../images/icon-arrow-link.svg'
 
@@ -15,6 +15,12 @@ let post: Post = null
 if (pageId) {
   post = await getPostByPageId(pageId)
 }
+
+// メンション先は必ずブログ DB 内の記事なので、file タイプ（署名付き URL が
+// 失効する）のアイコンは記事アイコンのダウンロードでローカルに落ちている
+const iconImageURL = post
+  ? getIconImageURL(post.Icon, `page_id: ${post.PageId}`)
+  : undefined
 ---
 
 {
@@ -24,9 +30,9 @@ if (pageId) {
         <span class="icon">
           {post.Icon && post.Icon.Type === 'emoji' ? (
             post.Icon.Emoji
-          ) : post.Icon && post.Icon.Type === 'external' ? (
+          ) : iconImageURL ? (
             <img
-              src={post.Icon.Url}
+              src={iconImageURL}
               class="notion-icon"
               alt="Post title icon in a page link"
             />

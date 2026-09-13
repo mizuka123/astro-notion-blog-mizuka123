@@ -67,7 +67,19 @@ const fileUrls = await Promise.all(
     return (latestBlock.Image || latestBlock.File).File.Url
   })
 )
-await downloadFiles(`posts/${slug}`, fileUrls)
+
+// callout の file タイプのアイコンも同じ経路で落とす。
+// 記事アイコンと違ってブロックを辿らないと分からないが、ここなら
+// レンダリングに使う blocks をそのまま流用できる。別のタイミングで
+// ブロックを取り直すと、落とした URL と描画する URL がずれて
+// 「ダウンロードしていないファイルを src に書く」隙ができる
+const calloutIconUrls = extractTargetBlocks('callout', blocks)
+  .map((block) =>
+    block.Callout?.Icon?.Type === 'file' ? block.Callout.Icon.Url : undefined
+  )
+  .filter((url): url is string => !!url)
+
+await downloadFiles(`posts/${slug}`, [...fileUrls, ...calloutIconUrls])
 
 const currentPostIndex = allPosts.findIndex((post) => post.Slug === slug)
 const prevPost = allPosts[currentPostIndex + 1]
