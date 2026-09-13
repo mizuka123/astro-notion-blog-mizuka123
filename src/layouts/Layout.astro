@@ -21,6 +21,11 @@ export interface Props {
   ogImage?: string
 }
 
+// path のデフォルトは '/'（トップページ）。省略するとそのページの canonical と
+// og:url がトップページを指してしまい、検索エンジンには「このページは重複」と
+// 宣言したことになる（実際に /archive/ と /contact/ で起きた）。
+// トップページ以外からは必ず path を渡すこと。
+// 書式は他ページに合わせて末尾スラッシュ無し（例: '/archive'）
 const { title = '', description = '', path = '/', ogImage = '' } = Astro.props
 
 const database = await getDatabase()
