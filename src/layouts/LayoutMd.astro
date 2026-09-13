@@ -12,6 +12,7 @@ import {
   getNavLink,
   getStaticFilePath,
   getDatabaseImageURLs,
+  stripBasePath,
 } from '../lib/blog-helpers'
 import '../styles/syntax-coloring.css'
 import '../styles/layout-global.css'
@@ -49,7 +50,18 @@ const [rankedPosts, tags, recentPosts] = await Promise.all([
   getPosts(5),
 ])
 
-const { title = frontmatter.title, description = '', path = frontmatter.url, ogImage = frontmatter.coverImage } = Astro.props
+// SiteHead に渡す path は「BASE_PATH を含まない生パス」であること
+// （canonical / og:url は SiteHead が getNavLink(path) で組み立てており、
+// getNavLink 側が BASE_PATH を足すため）。
+// Astro が渡す frontmatter.url は base 込み（BASE_PATH='/blog' なら
+// '/blog/archive/100'）なので、そのまま渡すと二重に付いて
+// '/blog/blog/archive/100' になる。stripBasePath() で剥がしてから渡す
+const {
+  title = frontmatter.title,
+  description = '',
+  path = frontmatter.url ? stripBasePath(frontmatter.url) : frontmatter.url,
+  ogImage = frontmatter.coverImage,
+} = Astro.props
 
 const database = await getDatabase()
 

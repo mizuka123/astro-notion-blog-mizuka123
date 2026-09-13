@@ -233,12 +233,38 @@ export const getStaticFilePath = (path: string): string => {
   return pathJoin(BASE_PATH, path)
 }
 
+// 引数 nav は「BASE_PATH を含まない生パス」（例: '/posts/foo'）。
+// BASE_PATH を足すのはこの関数の仕事なので、getPostLink() や
+// Markdown ページの frontmatter.url のような "すでに BASE_PATH 込み" の値を
+// 渡してはいけない（二重に付いて /blog/blog/posts/foo になる）。
+// 剥がしてから渡したい場合は stripBasePath() を使うこと
 export const getNavLink = (nav: string) => {
   if ((!nav || nav === '/') && BASE_PATH) {
     return pathJoin(BASE_PATH, '') + '/'
   }
 
   return pathJoin(BASE_PATH, nav)
+}
+
+// BASE_PATH 込みのパスから BASE_PATH を取り除いて生パスに戻す。
+// Astro が組み立てる Markdown ページの frontmatter.url は base 込みなので
+// （node_modules/astro/dist/vite-plugin-utils/index.js の getFileInfo が
+// pages/ より前を base に置き換えている）、getNavLink に渡す前にこれを通す。
+// BASE_PATH が空（現状）のときは何もしないので既存の出力は変わらない
+export const stripBasePath = (path: string): string => {
+  if (!BASE_PATH) {
+    return path
+  }
+
+  // BASE_PATH は '/blog' でも '/blog/' でも設定されうるので正規化しておく
+  const base = pathJoin(BASE_PATH, '')
+  if (path === base) {
+    return '/'
+  }
+  if (path.startsWith(`${base}/`)) {
+    return path.slice(base.length)
+  }
+  return path
 }
 
 export const getPostLink = (slug: string) => {
