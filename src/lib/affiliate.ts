@@ -35,10 +35,18 @@ const VALUECOMMERCE_PID_SEVEN_NET = '881990643'
 
 /** 1 ショップ分のリンク */
 export interface ShopLink {
-  /** ボタンに出すショップ名 */
+  /** ボタンに出すラベル */
   name: string
   /** 遷移先（アフィリエイト計測を通した URL） */
   url: string
+  /**
+   * ボタンの背景色。
+   *
+   * 値は勘で決めたものではなく、同じ記事に置いてある ValueCommerce の
+   * MyLinkBox が実際に描画しているボタンの computed style を測って写した。
+   * 既存のボックスと並んだときに浮かないようにするため
+   */
+  color: string
 }
 
 /**
@@ -76,24 +84,28 @@ export const buildProductLinks = (productName: string): ShopLink[] => {
 
   return [
     {
-      name: 'Amazon',
+      name: 'Amazonで探す',
+      color: '#fd9827',
       // Amazon だけは中間サーバを挟まず、検索 URL に tag を足すだけで計測される
       url: `https://www.amazon.co.jp/s?k=${encodedKeyword}&tag=${AMAZON_ASSOCIATE_TAG}`,
     },
     {
-      name: '楽天市場',
+      name: '楽天市場で探す',
+      color: '#bd0711',
       // 楽天は pc= の値として遷移先 URL を包む。vc_url= と同じ二重エンコード
       url: `https://hb.afl.rakuten.co.jp/hgc/${RAKUTEN_AFFILIATE_ID}/?pc=${encodeURIComponent(rakutenSearchURL)}`,
     },
     {
-      name: 'Yahoo!ショッピング',
+      name: 'Yahoo!ショッピングで探す',
+      color: '#ff0033',
       url: buildValueCommerceURL(
         VALUECOMMERCE_PID_YAHOO_SHOPPING,
         yahooShoppingSearchURL
       ),
     },
     {
-      name: 'セブンネット',
+      name: 'セブンネットで探す',
+      color: '#d9332b',
       url: buildValueCommerceURL(
         VALUECOMMERCE_PID_SEVEN_NET,
         sevenNetSearchURL
