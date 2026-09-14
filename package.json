@@ -7,6 +7,8 @@
     "dev": "astro dev",
     "start": "astro dev",
     "build": "astro build",
+    "build:local": "node --env-file-if-exists=.env scripts/check-local-env.mjs && node --env-file-if-exists=.env node_modules/astro/astro.js build",
+    "dev:local": "node --env-file-if-exists=.env scripts/check-local-env.mjs && node --env-file-if-exists=.env node_modules/astro/astro.js dev",
     "build:cached": "npm run cache:fetch && astro build",
     "preview": "astro preview",
     "astro": "astro",
