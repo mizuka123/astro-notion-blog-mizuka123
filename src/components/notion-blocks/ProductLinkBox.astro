@@ -24,6 +24,7 @@ const links = buildProductLinks(productName)
             href={link.url}
             target="_blank"
             rel="nofollow sponsored noopener noreferrer"
+            style={`--shop-color: ${link.color}`}
           >
             {link.name}
           </a>
@@ -56,6 +57,9 @@ const links = buildProductLinks(productName)
   .shops {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
+    /* ラベルが折り返した行だけ高くなって不揃いに見えるのを防ぐ。
+       2 列になる狭い画面で「Yahoo!ショッピングで探す」だけ 2 行になるため */
+    grid-auto-rows: 1fr;
     gap: 8px;
     margin: 0;
     padding: 0;
@@ -66,28 +70,35 @@ const links = buildProductLinks(productName)
   .shops > li {
     min-width: 0;
   }
+  /* 背景色は link.color から --shop-color として流し込まれる。
+     値の出どころは affiliate.ts のコメント参照（MyLinkBox の実測値）。
+     角丸 10px / 文字 13px / 白文字も同じく MyLinkBox に合わせている */
   .shops > li > a {
     display: flex;
     align-items: center;
     justify-content: center;
     box-sizing: border-box;
     width: 100%;
+    /* grid-auto-rows: 1fr が決めた行の高さいっぱいに広げる */
+    height: 100%;
     min-height: 40px;
     padding: 6px 4px;
-    border: 1px solid rgba(55, 53, 47, 0.2);
-    border-radius: var(--radius);
-    background: var(--bg);
-    color: var(--fg);
-    font-size: 0.8rem;
+    border: none;
+    border-radius: 10px;
+    background: var(--shop-color);
+    color: #fff;
+    font-size: 13px;
     line-height: 1.3;
     text-align: center;
     text-decoration: none;
-    /* 「Yahoo!ショッピング」のような長いラベルを単語途中でも折り返す。
+    /* 「Yahoo!ショッピングで探す」のような長いラベルを単語途中でも折り返す。
        これが無いと狭い画面でボタンが横に溢れる */
     overflow-wrap: anywhere;
   }
   .shops > li > a:hover {
-    background: rgba(235, 236, 237, 0.6);
+    /* 色はショップごとに違うので、暗くするのではなく全体を少し透かす。
+       どの背景色でも同じ見え方になる */
+    opacity: 0.85;
   }
   @media (max-width: 640px) {
     /* 4 列のままだと 1 列あたり 70px 程度になりラベルが収まらないので 2 列にする */
