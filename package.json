@@ -14,6 +14,7 @@
     "astro": "astro",
     "lint": "eslint src",
     "format": "npx prettier --write .",
+    "notion": "node --env-file-if-exists=.env scripts/notion-cli.mjs",
     "cache:fetch": "node scripts/blog-contents-cache.cjs",
     "cache:purge": "nx reset && rm -f tmp/*",
     "_fetch-notion-blocks": "node scripts/retrieve-block-children.cjs"
