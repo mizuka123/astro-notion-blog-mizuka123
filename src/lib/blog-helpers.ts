@@ -21,7 +21,11 @@ export const filePath = (url: URL): string => {
 // OGP 用に生成した 1200x630 画像の名前。
 // `og-` と `.jpg` は ASCII なので、エンコード済みの名前に付けてから
 // デコードしても、デコードしてから付けても同じ結果になる。
-// そのため URL 用とディスク用で同じ関数を使い回せる
+// そのため URL 用とディスク用で同じ関数を使い回せる。
+// ただし拡張子のドットがパーセントエンコード（%2E）されている場合は
+// 拡張子を剥がせず og-<名前>.jpg.jpg のような名前になる。
+// encodeURIComponent はドットをエンコードしないので実際には起きないが、
+// 「どんな名前でも同じ」ではないことは書いておく
 const ogImageName = (filename: string): string =>
   `og-${filename.replace(/\.[^.]+$/, '')}.jpg`
 
