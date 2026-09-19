@@ -91,6 +91,25 @@ const stripQuery = (url) => {
   }
 };
 
+// --json は SDK の応答をそのまま出すため、Markdown 経路（fileUrl）の
+// クエリ除去が効かず、署名付き URL がそのまま出てしまっていた。
+// Notion の署名付きファイルは { url, expiry_time } という形をしていて、
+// bookmark や embed の外部 URL（{ caption, url } など）には expiry_time が
+// 無い。expiry_time の有無で見分ければ、外部 URL のクエリは壊さずに済む
+const sanitizeSignedUrls = (value) => {
+  if (Array.isArray(value)) return value.map(sanitizeSignedUrls);
+  if (value === null || typeof value !== 'object') return value;
+
+  const out = {};
+  for (const [key, child] of Object.entries(value)) {
+    out[key] = sanitizeSignedUrls(child);
+  }
+  if (typeof out.url === 'string' && typeof out.expiry_time === 'string') {
+    out.url = stripQuery(out.url);
+  }
+  return out;
+};
+
 // ---------------------------------------------------------- プロパティの読み
 
 const plain = (richTexts) =>
@@ -113,38 +132,82 @@ const postSummary = (page) => ({
 
 // ------------------------------------------------------------ データソース
 
-let cachedDataSourceId = null;
-
-const getDataSourceId = async () => {
-  if (cachedDataSourceId) return cachedDataSourceId;
-
-  const db = await notion.databases.retrieve({ database_id: DATABASE_ID });
-  const dataSource = db.data_sources?.[0];
-  if (!dataSource) {
-    throw new Error('データベースに data source がありません。');
-  }
-  cachedDataSourceId = dataSource.id;
-  return cachedDataSourceId;
+// この CLI が読むプロパティと、期待する型。
+// Notion 側で名前や型を変えられると、下の表示は黙って空欄になるだけで
+// 何も知らせない（src/lib/notion/client.ts の _validPageObject が
+// ビルド側で同じ問題に対処している）。起動時に 1 回だけ突き合わせる
+const EXPECTED_PROPERTIES = {
+  Page: 'title',
+  Slug: 'rich_text',
+  Date: 'date',
+  Published: 'checkbox',
+  Tags: 'multi_select',
+  Excerpt: 'rich_text',
+  Rank: 'number',
 };
 
-// 全件取りたい場面（tags の集計など）があるので、ページングは必ず回し切る
-const queryAll = async (params) => {
-  const data_source_id = await getDataSourceId();
+let cachedDataSource = null;
+
+const getDataSource = async () => {
+  if (cachedDataSource) return cachedDataSource;
+
+  const db = await notion.databases.retrieve({ database_id: DATABASE_ID });
+  const ref = db.data_sources?.[0];
+  if (!ref) {
+    throw new Error('データベースに data source がありません。');
+  }
+
+  cachedDataSource = await notion.dataSources.retrieve({
+    data_source_id: ref.id,
+  });
+
+  const mismatched = Object.entries(EXPECTED_PROPERTIES)
+    .filter(([name, type]) => cachedDataSource.properties[name]?.type !== type)
+    .map(([name, type]) => {
+      const actual = cachedDataSource.properties[name]?.type;
+      return actual
+        ? `${name}（${type} のはずが ${actual}）`
+        : `${name}（無し）`;
+    });
+
+  if (mismatched.length > 0) {
+    // 止めはしない。読めるプロパティは読めるので、
+    // 空欄の理由が分かる形で伝えるだけにする
+    console.error(
+      '警告: 期待するプロパティが見つかりません: ' +
+        mismatched.join(', ') +
+        '\nNotion 側で名前か型が変更された可能性があります。' +
+        'この項目の表示は空欄になります。\n'
+    );
+  }
+
+  return cachedDataSource;
+};
+
+const getDataSourceId = async () => (await getDataSource()).id;
+
+// 全件取りたい場面（tags の集計など）があるので、ページングは必ず回し切る。
+// 途中で失敗したら握りつぶさず投げる。部分的な結果を全件として
+// 見せてしまうのが一番まずい
+const paginateAll = async (fetchPage) => {
   const results = [];
   let start_cursor = undefined;
 
   for (;;) {
-    const res = await notion.dataSources.query({
-      ...params,
-      data_source_id,
-      start_cursor,
-    });
+    const res = await fetchPage(start_cursor);
     results.push(...res.results);
     if (!res.has_more) break;
     start_cursor = res.next_cursor;
   }
 
   return results;
+};
+
+const queryAll = async (params) => {
+  const data_source_id = await getDataSourceId();
+  return paginateAll((start_cursor) =>
+    notion.dataSources.query({ ...params, data_source_id, start_cursor })
+  );
 };
 
 const fetchPosts = async ({ includeDrafts = false, tag = null } = {}) => {
@@ -191,23 +254,14 @@ const fileUrl = (file) => {
   return url ? stripQuery(url) : '';
 };
 
-const getChildren = async (blockId) => {
-  const blocks = [];
-  let start_cursor = undefined;
-
-  for (;;) {
-    const res = await notion.blocks.children.list({
+const getChildren = async (blockId) =>
+  paginateAll((start_cursor) =>
+    notion.blocks.children.list({
       block_id: blockId,
       start_cursor,
       page_size: 100,
-    });
-    blocks.push(...res.results);
-    if (!res.has_more) break;
-    start_cursor = res.next_cursor;
-  }
-
-  return blocks;
-};
+    })
+  );
 
 const renderBlocks = async (blockId, indent = '') => {
   const blocks = await getChildren(blockId);
@@ -342,8 +396,12 @@ const findPage = async (key) => {
 
   try {
     return await notion.pages.retrieve({ page_id: key });
-  } catch {
-    return null;
+  } catch (err) {
+    // 以前はすべての例外を null にしていたため、レート制限や
+    // インテグレーションの権限切れまで「記事が見つかりません」と
+    // 表示され、原因を取り違える。本当に無い場合だけ null を返す
+    if (err.code === 'object_not_found') return null;
+    throw err;
   }
 };
 
@@ -400,7 +458,7 @@ const cmdGet = async (key, opts) => {
 
   if (opts.json) {
     const blocks = await getChildren(page.id);
-    console.log(JSON.stringify({ page, blocks }, null, 2));
+    console.log(JSON.stringify(sanitizeSignedUrls({ page, blocks }), null, 2));
     return;
   }
 
@@ -452,9 +510,7 @@ const cmdTags = async (opts) => {
 };
 
 const cmdProps = async (opts) => {
-  const dataSource = await notion.dataSources.retrieve({
-    data_source_id: await getDataSourceId(),
-  });
+  const dataSource = await getDataSource();
 
   if (opts.json) {
     console.log(JSON.stringify(dataSource.properties, null, 2));
@@ -465,11 +521,11 @@ const cmdProps = async (opts) => {
   const width = Math.max(4, ...names.map(displayWidth));
   for (const name of names) {
     const prop = dataSource.properties[name];
+    // multi_select と select はどちらも options を持ち、
+    // その入れ物の名前が type と同じなので 1 本で足りる
     let detail = '';
-    if (prop.type === 'multi_select') {
-      detail = ' (' + prop.multi_select.options.length + ' options)';
-    } else if (prop.type === 'select') {
-      detail = ' (' + prop.select.options.length + ' options)';
+    if (prop.type === 'multi_select' || prop.type === 'select') {
+      detail = ' (' + prop[prop.type].options.length + ' options)';
     }
     console.log(pad(name, width + 2) + prop.type + detail);
   }
@@ -494,13 +550,14 @@ Notion のブログ DB を読む CLI（読み取り専用）
 const main = async () => {
   const argv = process.argv.slice(2);
 
+  const tagIndex = argv.indexOf('--tag');
+  const limitIndex = argv.indexOf('--limit');
+
   // 値を取るオプションの「値の位置」を覚えておく。こうしないと
   // `get --limit 5` の 5 を slug と取り違える
-  const consumed = new Set();
-  for (const name of ['--tag', '--limit']) {
-    const i = argv.indexOf(name);
-    if (i >= 0) consumed.add(i + 1);
-  }
+  const consumed = new Set(
+    [tagIndex, limitIndex].filter((i) => i >= 0).map((i) => i + 1)
+  );
 
   const positional = argv.filter(
     (a, i) => !a.startsWith('-') && !consumed.has(i)
@@ -513,7 +570,6 @@ const main = async () => {
     limit: 20,
   };
 
-  const tagIndex = argv.indexOf('--tag');
   if (tagIndex >= 0) {
     const value = argv[tagIndex + 1];
     // --tag の次が無い／オプションだと、意図せず絞り込みなしで全件出てしまう
@@ -525,7 +581,6 @@ const main = async () => {
     opts.tag = value;
   }
 
-  const limitIndex = argv.indexOf('--limit');
   if (limitIndex >= 0) {
     const n = Number(argv[limitIndex + 1]);
     // 数値でない指定を黙って既定値に落とすと、件数が違う理由が分からなくなる
