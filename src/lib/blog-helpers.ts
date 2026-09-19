@@ -18,6 +18,32 @@ export const filePath = (url: URL): string => {
   return pathJoin(BASE_PATH, `/notion/${dir}/${filename}`)
 }
 
+// OGP 用に生成した 1200x630 画像の名前。
+// `og-` と `.jpg` は ASCII なので、エンコード済みの名前に付けてから
+// デコードしても、デコードしてから付けても同じ結果になる。
+// そのため URL 用とディスク用で同じ関数を使い回せる
+const ogImageName = (filename: string): string =>
+  `og-${filename.replace(/\.[^.]+$/, '')}.jpg`
+
+/**
+ * 生成した OGP 画像の URL パス。filePath() と同じ規約で、
+ * Notion の URL に入っているエンコード済みの名前をそのまま使う。
+ */
+export const ogImageUrlPath = (url: URL): string => {
+  const [dir, filename] = url.pathname.split('/').slice(-2)
+  return pathJoin(BASE_PATH, `/notion/${dir}/${ogImageName(filename)}`)
+}
+
+/**
+ * 生成した OGP 画像のディスク上のパス。
+ * downloadFile() が decodeURIComponent した名前で保存するので、
+ * こちらもデコードした名前に合わせる。BASE_PATH は付けない
+ */
+export const ogImageLocalPath = (url: URL): string => {
+  const [dir, filename] = url.pathname.split('/').slice(-2)
+  return `public/notion/${dir}/${decodeURIComponent(ogImageName(filename))}`
+}
+
 /**
  * データベースのカバー画像とカスタムアイコンの URL を、表示に使える形で返す。
  *
