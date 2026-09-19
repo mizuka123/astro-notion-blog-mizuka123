@@ -5,6 +5,7 @@ import CoverImageDownloader from './src/integrations/cover-image-downloader';
 import CustomIconDownloader from './src/integrations/custom-icon-downloader';
 import FeaturedImageDownloader from './src/integrations/featured-image-downloader';
 import FileIconDownloader from './src/integrations/file-icon-downloader';
+import OgImageGenerator from './src/integrations/og-image-generator';
 import PublicNotionCopier from './src/integrations/public-notion-copier';
 import sitemap from '@astrojs/sitemap';
 const getSite = function () {
@@ -39,6 +40,9 @@ export default defineConfig({
     CoverImageDownloader(),
     CustomIconDownloader(),
     FeaturedImageDownloader(),
+    // FeaturedImageDownloader の後であること。落としたファイルを読んで
+    // OGP 用の 1200x630 を作る
+    OgImageGenerator(),
     FileIconDownloader(),
     PublicNotionCopier(),
     sitemap(),

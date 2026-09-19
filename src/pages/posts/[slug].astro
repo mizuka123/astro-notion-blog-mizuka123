@@ -11,7 +11,13 @@ import {
   getAllBlocksByBlockId,
   downloadFiles,
 } from '../../lib/notion/client.ts'
-import { filePath, extractTargetBlocks } from '../../lib/blog-helpers.ts'
+import fs from 'node:fs'
+import {
+  filePath,
+  extractTargetBlocks,
+  ogImageUrlPath,
+  ogImageLocalPath,
+} from '../../lib/blog-helpers.ts'
 import Layout from '../../layouts/Layout.astro'
 import PostDate from '../../components/PostDate.astro'
 import PostTags from '../../components/PostTags.astro'
@@ -95,7 +101,20 @@ const nextPost = allPosts[currentPostIndex - 1]
 
 let ogImage = ''
 if (post.FeaturedImage && post.FeaturedImage.Url) {
-  ogImage = new URL(filePath(new URL(post.FeaturedImage.Url)), Astro.site)
+  const featuredImageUrl = new URL(post.FeaturedImage.Url)
+
+  // og-image-generator が作った 1200x630 があればそちらを使う。
+  // FeaturedImage をそのまま渡すと、縦長のスクリーンショットは SNS 側で
+  // 1.91:1 に切られて中央の帯しか出ず、数 MB の画像がそのまま配信される。
+  // 生成できなかった記事は元画像に戻す（og:image が空になるよりよい）
+  // ogImage は string なので、URL のまま入れると型が合わない
+  // （元から ts(2322) が出ていた箇所。触るついでに直している）
+  ogImage = new URL(
+    fs.existsSync(ogImageLocalPath(featuredImageUrl))
+      ? ogImageUrlPath(featuredImageUrl)
+      : filePath(featuredImageUrl),
+    Astro.site
+  ).toString()
 }
 
 // 下の Layout に渡す path は「BASE_PATH を含まない生パス」であること。
