@@ -15,9 +15,12 @@ import type { Element, ElementContent, Root, RootContent } from 'hast'
  * テキストの中身は変えず、入れ子だけを変える。
  */
 
-// ショップのリンクとして扱う表記。リンクテキストがこれで始まるものを
-// ボックスの一部とみなす
-const SHOP_PREFIXES = [
+// ショップのリンクとして扱うテキスト。
+// 前方一致ではなく «完全一致» で見る。前方一致だと
+// 「Amazon Echo Dot」のような商品名をショップリンクと誤判定し、
+// その商品名がボックスの外に取り残される。
+// 実測では 1,868 件すべてがこのいずれかと完全一致していた
+const SHOP_NAMES = new Set([
   'Amazon',
   '楽天市場',
   'Yahooショッピング',
@@ -26,11 +29,34 @@ const SHOP_PREFIXES = [
   'セブンネット',
   '価格.com',
   'ソニーストア',
-]
+])
+
+/**
+ * 商品リンクとして扱うリンク先。
+ *
+ * これを見ないと、商品ボックスの直前にある «著者自身の» リンク
+ * （Flickr のアルバム、関連記事、A8 のバナー）まで巻き込んでしまう。
+ * 実際に 17 件で起き、「今回撮影した全ての写真はこちら↓」という
+ * 文が指すリンクが商品カードの内側に入っていた。
+ *
+ * 正当な先頭リンクは実測 1,090 件で、うち 1,088 件が Amazon の
+ * ASIN リンク、2 件が楽天アフィリエイト（Amazon に無い商品）だった
+ */
+const isProductHref = (href: string): boolean =>
+  href.includes('/exec/obidos/ASIN/') ||
+  href.includes('afl.rakuten.co.jp') ||
+  href.includes('valuecommerce.com') ||
+  href.includes('7netshopping.jp') ||
+  href.includes('omni7.jp')
 
 // 「posted with カエレバ」より前に並ぶ画像リンク・商品名リンクの数。
 // 実測では最大 3 だった（502 件が 2、59 件が 1）
 const MAX_LEADING = 3
+
+// ショップリンクだけが並ぶブロック（posted with が失われたもの）を
+// 拾うときの最小連続数。1 にすると「Amazonで詳しく見る」のような
+// 単独ウィジェットまで拾ってしまう
+const MIN_SHOP_RUN = 2
 
 const isElement = (node: RootContent | ElementContent): node is Element =>
   node.type === 'element'
@@ -57,6 +83,9 @@ const soleAnchor = (node: RootContent | ElementContent): Element | null => {
   return only
 }
 
+const hrefOf = (anchor: Element): string =>
+  typeof anchor.properties?.href === 'string' ? anchor.properties.href : ''
+
 /** 「posted with カエレバ」の段落か。 */
 const isPostedWith = (node: RootContent | ElementContent): boolean => {
   if (!isElement(node) || node.tagName !== 'p') return false
@@ -66,38 +95,35 @@ const isPostedWith = (node: RootContent | ElementContent): boolean => {
     (child) =>
       isElement(child) &&
       child.tagName === 'a' &&
-      typeof child.properties?.href === 'string' &&
-      child.properties.href.includes('kaereba.com')
+      hrefOf(child).includes('kaereba.com')
   )
 }
-
-/**
- * 商品画像・商品名のリンク段落か。
- *
- * ショップリンクを除くのが要点。カエレバの並びは
- * 画像 → 商品名 → posted with → ブランド → ショップ の順で、
- * ショップリンクが商品名より前に来ることはない。除かないと、
- * 商品ボックスが連続しているときに «前のボックスの» 楽天市場や
- * Yahooショッピング を次のボックスの先頭として飲み込んでしまう
- * （実際に 3557.md で起きた）。
- * 商品名がショップ名で始まる例は 609 記事に 1 件も無いことを確認済み
- */
-const isLeadingLink = (node: RootContent | ElementContent): boolean =>
-  soleAnchor(node) !== null && !isShopLink(node)
 
 /** ショップへのリンクの段落か。 */
 const isShopLink = (node: RootContent | ElementContent): boolean => {
   const anchor = soleAnchor(node)
-  if (!anchor) return false
-  const text = textOf(anchor).trim()
-  return SHOP_PREFIXES.some((shop) => text.startsWith(shop))
+  return anchor !== null && SHOP_NAMES.has(textOf(anchor).trim())
 }
 
-/** 文字だけの段落か（ブランド名）。 */
+/** 商品画像・商品名のリンクの段落か。 */
+const isProductLink = (node: RootContent | ElementContent): boolean => {
+  const anchor = soleAnchor(node)
+  if (!anchor || isShopLink(node)) return false
+  return isProductHref(hrefOf(anchor))
+}
+
+/** 文字だけの段落か（ブランド名や発売日）。 */
 const isPlainText = (node: RootContent | ElementContent): boolean => {
   if (!isElement(node) || node.tagName !== 'p') return false
   return meaningfulChildren(node).every((child) => child.type === 'text')
 }
+
+/** 既にまとめ済みのボックスか。 */
+const isProductBox = (node: RootContent | ElementContent): boolean =>
+  isElement(node) &&
+  node.tagName === 'div' &&
+  Array.isArray(node.properties?.className) &&
+  node.properties.className.includes('product-box')
 
 /**
  * markdown 由来の構文木では要素の間に改行のテキストノードが挟まる。
@@ -119,20 +145,25 @@ const nextIndex = (children: RootContent[], i: number): number => {
   return j
 }
 
-/** children[index] を起点に、ボックスの範囲 [start, end) を決める。 */
-const blockRange = (
+/** index から前に向かって、ブランド名と商品リンクを取り込んだ開始位置。 */
+const extendBackward = (children: RootContent[], index: number): number => {
+  let start = index
+  for (let taken = 0; taken < MAX_LEADING; taken++) {
+    const prev = prevIndex(children, start)
+    if (prev < 0 || !isProductLink(children[prev])) break
+    start = prev
+  }
+  return start
+}
+
+/** posted with を起点にした範囲 [start, end)。 */
+const rangeFromPosted = (
   children: RootContent[],
   index: number
 ): [number, number] => {
-  let start = index
-  // 前方向: 画像リンク・商品名リンクを最大 MAX_LEADING 個まで取り込む
-  for (let taken = 0; taken < MAX_LEADING; taken++) {
-    const prev = prevIndex(children, start)
-    if (prev < 0 || !isLeadingLink(children[prev])) break
-    start = prev
-  }
+  const start = extendBackward(children, index)
 
-  // 後方向: ブランド名（1 つだけ）とショップリンクを取り込む。
+  // 後方向: ブランド名（直後に 1 つだけ）とショップリンクを取り込む。
   // 著者の地の文を巻き込まないよう、ブランド名は直後に来たときだけ
   let last = index
   const afterPosted = nextIndex(children, last)
@@ -152,23 +183,91 @@ const wrap = (nodes: RootContent[]): Element => ({
   type: 'element',
   tagName: 'div',
   properties: { className: ['product-box'] },
-  children: nodes as ElementContent[],
+  // Doctype は Root 直下にしか現れず、ここへ来る並びには含まれない。
+  // 型の上では RootContent に含まれるので、明示的に取り除いておく
+  children: nodes.filter(
+    (node): node is ElementContent => node.type !== 'doctype'
+  ),
 })
+
+const replaceRange = (
+  children: RootContent[],
+  start: number,
+  end: number
+): void => {
+  children.splice(start, end - start, wrap(children.slice(start, end)))
+}
+
+/** posted with があるブロックをまとめる。 */
+const wrapPostedBlocks = (children: RootContent[]): void => {
+  // 後ろから見ていく。前から置き換えると添字がずれる
+  for (let i = children.length - 1; i >= 0; i--) {
+    if (!isPostedWith(children[i])) continue
+    const [start, end] = rangeFromPosted(children, i)
+    replaceRange(children, start, end)
+    i = start
+  }
+}
+
+/**
+ * posted with が失われたブロックをまとめる。
+ *
+ * 8 記事 18 ブロックで、移行時に「posted with カエレバ」の段落だけが
+ * 失われており、画像・商品名・ブランド・ショップリンクがばらけたまま
+ * 残っていた。ショップリンクが 2 つ以上続く箇所を起点に拾う。
+ * 先に wrapPostedBlocks を通しておけば、既にまとめた分のショップ
+ * リンクは div の中に入っていて、ここでは兄弟として見えない
+ */
+const wrapShopRuns = (children: RootContent[]): void => {
+  for (let i = children.length - 1; i >= 0; i--) {
+    if (!isShopLink(children[i])) continue
+
+    // 連続するショップリンクの先頭まで戻る
+    let first = i
+    for (;;) {
+      const prev = prevIndex(children, first)
+      if (prev < 0 || !isShopLink(children[prev])) break
+      first = prev
+    }
+
+    let count = 0
+    for (let j = first; j <= i; j++) if (isShopLink(children[j])) count++
+    if (count < MIN_SHOP_RUN) {
+      i = first
+      continue
+    }
+
+    // ブランド名（1 つだけ）と商品リンクを前に向かって取り込む
+    let start = first
+    const beforeShops = prevIndex(children, start)
+    if (beforeShops >= 0 && isPlainText(children[beforeShops])) {
+      start = beforeShops
+    }
+    start = extendBackward(children, start)
+
+    // 商品リンクが 1 つも無いならカエレバのブロックではない
+    let hasProduct = false
+    for (let j = start; j < first; j++) {
+      if (isProductLink(children[j])) hasProduct = true
+    }
+    if (!hasProduct) {
+      i = first
+      continue
+    }
+
+    replaceRange(children, start, i + 1)
+    i = start
+  }
+}
 
 const transform = (node: Root | Element): void => {
   // 子を先に処理する。入れ子の中にボックスがあっても拾えるようにするため
   for (const child of node.children) {
-    if (child.type === 'element') transform(child)
+    if (child.type === 'element' && !isProductBox(child)) transform(child)
   }
 
-  // 後ろから見ていく。前から置き換えると添字がずれる
-  for (let i = node.children.length - 1; i >= 0; i--) {
-    if (!isPostedWith(node.children[i])) continue
-    const [start, end] = blockRange(node.children, i)
-    const taken = node.children.slice(start, end)
-    node.children.splice(start, end - start, wrap(taken))
-    i = start
-  }
+  wrapPostedBlocks(node.children)
+  wrapShopRuns(node.children)
 }
 
 export default function rehypeProductBox() {
