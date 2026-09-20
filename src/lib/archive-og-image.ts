@@ -37,13 +37,21 @@ const readHead = (filePath: string, bytes: number): Buffer => {
   }
 }
 
+// 壊れたファイルから桁違いの値を読んでしまったときに気づけるようにする。
+// このブログの実画像は最大 6240px なので、65535（JPEG の幅フィールドの
+// 上限）を超えるものは画像として読めていないとみなす
+const MAX_SANE_WIDTH = 65535
+
 /** 画像の幅を返す。判定できなければ null。 */
 const imageWidth = (buf: Buffer): number | null => {
-  // PNG: IHDR の先頭が幅
+  // PNG: 署名の次は必ず IHDR チャンクで、その先頭が幅。
+  // 署名だけ見て幅を読むと、IHDR 以外が先頭に来る壊れたファイルで
+  // 0xdeadbeef のような値をそのまま返してしまう
   if (
     buf.length >= 24 &&
     buf.readUInt32BE(0) === 0x89504e47 &&
-    buf.readUInt32BE(4) === 0x0d0a1a0a
+    buf.readUInt32BE(4) === 0x0d0a1a0a &&
+    buf.readUInt32BE(12) === 0x49484452
   ) {
     return buf.readUInt32BE(16)
   }
@@ -70,7 +78,9 @@ const imageWidth = (buf: Buffer): number | null => {
   // セグメント長を使って読み飛ばすので、走査は数回で終わる
   if (buf.length >= 4 && buf[0] === 0xff && buf[1] === 0xd8) {
     let i = 2
-    while (i + 9 < buf.length) {
+    // SOF から幅を読むのに必要なのは i+8 まで。i+9 にすると
+    // バッファ末尾ちょうどで終わる SOF を 1 バイト差で取り逃す
+    while (i + 8 < buf.length) {
       if (buf[i] !== 0xff) {
         i++
         continue
@@ -139,12 +149,21 @@ export const archiveOgImagePath = (coverImage: string | undefined): string => {
       if (width === null && fs.statSync(filePath).size > HEADER_BYTES) {
         width = imageWidth(readHead(filePath, MAX_HEADER_BYTES))
       }
-      if (width === null) {
+      if (width === null || width <= 0 || width > MAX_SANE_WIDTH) {
         // 画像として読めないファイルが混ざっている場合。
         // 黙って共通画像になる理由が分からなくなるので出す
-        console.error(`archive-og-image: unknown format: ${filePath}`)
+        console.error(
+          `archive-og-image: unknown format or implausible width` +
+            ` (${width}): ${filePath}`
+        )
       } else if (width >= MIN_WIDTH) {
-        result = pathJoin(BASE_PATH, `/archive/images/${encodeURI(name)}`)
+        // encodeURI だと # と ? を素通しするため、foo#1.jpg のような名前で
+        // パスが途中までになり、残りがフラグメント扱いになる。
+        // ここで encode するのは 1 つのパス要素なので Component の方
+        result = pathJoin(
+          BASE_PATH,
+          `/archive/images/${encodeURIComponent(name)}`
+        )
       }
     } catch (err) {
       console.error(`archive-og-image: failed to read: ${filePath}`)
