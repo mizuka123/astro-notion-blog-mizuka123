@@ -14,6 +14,7 @@ import {
   getDatabaseImageURLs,
   stripBasePath,
 } from '../lib/blog-helpers'
+import { archiveOgImagePath } from '../lib/archive-og-image'
 import '../styles/syntax-coloring.css'
 import '../styles/layout-global.css'
 import GoogleAnalytics from '../components/GoogleAnalytics.astro'
@@ -24,7 +25,8 @@ import BlogTagsLink from '../components/BlogTagsLink.astro'
 import styles from '../styles/blog.module.css'
 
 // src/pages/archive/*.md の frontmatter のうち、このレイアウトが読むものだけ。
-// 全 609 件が title と date を持ち、coverImage は 538 件のみ。
+// 全 609 件が title と date を持つ。coverImage は「行がある」のが 538 件で、
+// うち値が入っているのは 515 件（23 件は空）。数え方で食い違うので注意
 // NOTE: archive/index.astro にも同じ md 群を対象にした別の型宣言があるが、
 // あちらが読むのは title / date / draft で、こちらとは中身が違う。
 // 名前が衝突しないよう別名にしてある
@@ -60,8 +62,20 @@ const {
   title = frontmatter.title,
   description = '',
   path = frontmatter.url ? stripBasePath(frontmatter.url) : frontmatter.url,
-  ogImage = frontmatter.coverImage,
+  ogImage: ogImageProp,
 } = Astro.props
+
+// coverImage をそのまま og:image に渡していたため、
+// <meta property="og:image" content="DSC02362_thumb1.jpg"> のように
+// URL ではなくファイル名が出力されていた。相対解決すると画像ではなく
+// HTML が返るため、609 記事すべてで SNS のカード画像が出ていなかった。
+//
+// archiveOgImagePath() は実体があって十分な大きさのものだけパスを返す。
+// 小さすぎるサムネイルは空が返り、SiteHead が共通の OGP 画像を使う
+const archiveOgPath = archiveOgImagePath(frontmatter.coverImage)
+const ogImage =
+  ogImageProp ||
+  (archiveOgPath ? new URL(archiveOgPath, Astro.site).toString() : '')
 
 const database = await getDatabase()
 
