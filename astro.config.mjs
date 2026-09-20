@@ -7,6 +7,7 @@ import FeaturedImageDownloader from './src/integrations/featured-image-downloade
 import FileIconDownloader from './src/integrations/file-icon-downloader';
 import OgImageGenerator from './src/integrations/og-image-generator';
 import PublicNotionCopier from './src/integrations/public-notion-copier';
+import rehypeProductBox from './src/lib/rehype-product-box';
 import sitemap from '@astrojs/sitemap';
 const getSite = function () {
   if (CUSTOM_DOMAIN) {
@@ -35,6 +36,11 @@ const getSite = function () {
 export default defineConfig({
   site: getSite(),
   base: BASE_PATH,
+  markdown: {
+    // カエレバの商品ボックスがばらけた <p> のままだと、
+    // 自動広告が商品名と購入リンクの間に入る。1 つの要素にまとめる
+    rehypePlugins: [rehypeProductBox],
+  },
   integrations: [
     icon(),
     CoverImageDownloader(),
