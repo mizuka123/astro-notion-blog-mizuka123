@@ -62,21 +62,32 @@ const parse = (buf: Buffer): ImageSize | null => {
     buf.toString('latin1', 8, 12) === 'WEBP'
   ) {
     const kind = buf.toString('latin1', 12, 16)
-    if (kind === 'VP8X') {
+    // VP8X と VP8L は格納値に 1 を足すので、ゼロ埋めのファイルでも
+    // 1x1 という «もっともらしい» 値になり、isSane の width > 0 では
+    // 弾けない。形式ごとの目印を確かめてから読む
+    if (kind === 'VP8X' && buf.readUInt32LE(16) === 10) {
+      // チャンク長は必ず 10。幅・高さとも 3 バイトのリトルエンディアン
       return {
-        width: (buf.readUIntLE(24, 3) & 0xffffff) + 1,
-        height: (buf.readUIntLE(27, 3) & 0xffffff) + 1,
+        width: buf.readUIntLE(24, 3) + 1,
+        height: buf.readUIntLE(27, 3) + 1,
       }
     }
-    if (kind === 'VP8L') {
-      // 14 ビットずつ詰まっている。幅の次に高さ
+    if (kind === 'VP8L' && buf[20] === 0x2f) {
+      // 0x2F は VP8L の署名バイト。続く 4 バイトに 14 ビットずつ
+      // 幅・高さが詰まっている
       const bits = buf.readUInt32LE(21)
       return {
         width: (bits & 0x3fff) + 1,
         height: ((bits >> 14) & 0x3fff) + 1,
       }
     }
-    if (kind === 'VP8 ') {
+    if (
+      kind === 'VP8 ' &&
+      buf[23] === 0x9d &&
+      buf[24] === 0x01 &&
+      buf[25] === 0x2a
+    ) {
+      // 9D 01 2A は非可逆フレームの開始コード
       return {
         width: buf.readUInt16LE(26) & 0x3fff,
         height: buf.readUInt16LE(28) & 0x3fff,
@@ -85,7 +96,8 @@ const parse = (buf: Buffer): ImageSize | null => {
     return null
   }
 
-  // JPEG: SOF マーカー（0xC0〜0xCF のうち DHT/DAC/DNL を除く）を探す。
+  // JPEG: SOF マーカーを探す。0xC0〜0xCF のうち 0xC4（DHT）・
+  // 0xC8（JPG、予約）・0xCC（DAC）だけは SOF ではないので除く。
   // セグメント長を使って読み飛ばすので、走査は数回で終わる
   if (buf.length >= 4 && buf[0] === 0xff && buf[1] === 0xd8) {
     let i = 2
@@ -140,8 +152,12 @@ const isSane = (size: ImageSize | null): size is ImageSize =>
 const cache = new Map<string, ImageSize | null>()
 
 /**
- * 画像の寸法を返す。読めない・値が不自然なら null。
- * 呼び出し側が存在確認済みのパスを渡すこと。
+ * 画像の寸法を返す。存在しない・読めない・値が不自然なら null。
+ *
+ * ここでは投げないしログも出さない。1 ファイルの破損で 5000 枚分の
+ * ビルドを止めたくないため。理由を知らせるかどうかは呼び出し側が
+ * 決める（archive-og-image.ts は共通 OGP に落ちた理由が分かるよう
+ * console.error を出す）。
  */
 export const imageSize = (filePath: string): ImageSize | null => {
   const cached = cache.get(filePath)

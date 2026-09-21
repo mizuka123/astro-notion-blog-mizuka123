@@ -28,9 +28,13 @@ const FILE_DIR = 'public/archive/images'
 const toFilePath = (src: unknown): string | null => {
   if (typeof src !== 'string') return null
 
-  // BASE_PATH を設定している場合は取り除いてから見る
-  const withoutBase =
-    BASE_PATH && src.startsWith(BASE_PATH) ? src.slice(BASE_PATH.length) : src
+  // BASE_PATH を設定している場合は取り除いてから見る。
+  // 切り落とした残りが / で始まることまで確かめる。単なる前方一致だと
+  // BASE_PATH='/arch' のような値のときに /archive/images/x.jpg を
+  // 削りすぎて、黙って対象外になってしまう
+  const rest =
+    BASE_PATH && src.startsWith(BASE_PATH) ? src.slice(BASE_PATH.length) : null
+  const withoutBase = rest !== null && rest.startsWith('/') ? rest : src
   if (!withoutBase.startsWith(URL_PREFIX)) return null
 
   // 記事には %2B（+ のエンコード）を含む参照が 76 件ある。
@@ -58,11 +62,19 @@ export default function rehypeImageDimensions() {
         if (child.type !== 'element') continue
 
         if (child.tagName === 'img') {
-          const props = (child.properties ??= {})
-          // 記事側が明示していれば尊重する
-          if (props.width === undefined && props.height === undefined) {
-            const filePath = toFilePath(props.src)
-            const size = filePath ? imageSize(filePath) : null
+          const filePath = toFilePath(child.properties?.src)
+          // 記事側が片方でも書いているなら何もしない。
+          // 足りない方だけを埋めると、記事が意図した比率と混ざって
+          // 表示が歪む方が困る（現状 /archive/images/ を指す生 <img> は
+          // 0 件なので、この分岐に入る入力は今のところ存在しない）
+          const props = child.properties
+          if (
+            filePath &&
+            props &&
+            props.width === undefined &&
+            props.height === undefined
+          ) {
+            const size = imageSize(filePath)
             if (size) {
               props.width = size.width
               props.height = size.height
