@@ -40,8 +40,9 @@ export default defineConfig({
   markdown: {
     // カエレバの商品ボックスがばらけた <p> のままだと、
     // 自動広告が商品名と購入リンクの間に入る。1 つの要素にまとめる。
-    // そのうえで画像に loading="lazy" を付ける（順序はどちらでもよいが、
-    // 商品ボックスの中の画像も対象にしたいので後に置く）
+    // そのうえで自前の画像に loading="lazy" を付ける。
+    // rehypeProductBox は <p> を <div> で包み直すだけで画像の順序を
+    // 変えないため、2 つの順序はどちらでも結果は同じ
     rehypePlugins: [rehypeProductBox, rehypeLazyImages],
   },
   integrations: [
