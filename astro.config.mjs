@@ -7,6 +7,7 @@ import FeaturedImageDownloader from './src/integrations/featured-image-downloade
 import FileIconDownloader from './src/integrations/file-icon-downloader';
 import OgImageGenerator from './src/integrations/og-image-generator';
 import PublicNotionCopier from './src/integrations/public-notion-copier';
+import rehypeImageDimensions from './src/lib/rehype-image-dimensions';
 import rehypeLazyImages from './src/lib/rehype-lazy-images';
 import rehypeProductBox from './src/lib/rehype-product-box';
 import sitemap from '@astrojs/sitemap';
@@ -40,10 +41,10 @@ export default defineConfig({
   markdown: {
     // カエレバの商品ボックスがばらけた <p> のままだと、
     // 自動広告が商品名と購入リンクの間に入る。1 つの要素にまとめる。
-    // そのうえで自前の画像に loading="lazy" を付ける。
+    // そのうえで自前の画像に loading="lazy" と width/height を付ける。
     // rehypeProductBox は <p> を <div> で包み直すだけで画像の順序を
-    // 変えないため、2 つの順序はどちらでも結果は同じ
-    rehypePlugins: [rehypeProductBox, rehypeLazyImages],
+    // 変えないため、3 つの順序はどれでも結果は同じ
+    rehypePlugins: [rehypeProductBox, rehypeLazyImages, rehypeImageDimensions],
   },
   integrations: [
     icon(),
