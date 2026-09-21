@@ -5,6 +5,7 @@ import {
   getRankedPosts,
   getAllTags,
 } from '../../lib/notion/client'
+import { getNavLink, stripBasePath } from '../../lib/blog-helpers'
 import Layout from '../../layouts/Layout.astro'
 import BlogPostsLink from '../../components/BlogPostsLink.astro'
 import BlogTagsLink from '../../components/BlogTagsLink.astro'
@@ -54,7 +55,9 @@ const sortedPosts = nonDraftPosts.sort((a, b) => {
     {
       sortedPosts.map((post) => (
         <li>
-          <a href={post.url}>{post.frontmatter.title}</a>
+          <a href={getNavLink(stripBasePath(post.url ?? ''))}>
+            {post.frontmatter.title}
+          </a>
         </li>
       ))
     }

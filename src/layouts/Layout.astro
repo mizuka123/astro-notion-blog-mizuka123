@@ -109,9 +109,11 @@ const { coverImageURL, customIconURL } = getDatabaseImageURLs(database)
           <SearchButton />
           <slot name="aside" />
           <ul>
-          <li><a href="/contact">お問い合わせ</a></li>
-          <li><a href="/posts/privacy">プライバシーポリシー</a></li>
-          <li><a href="/archive">アーカイブ一覧</a></li>
+          <li><a href={getNavLink('/contact')}>お問い合わせ</a></li>
+          <li>
+            <a href={getNavLink('/posts/privacy')}>プライバシーポリシー</a>
+          </li>
+          <li><a href={getNavLink('/archive')}>アーカイブ一覧</a></li>
           </ul>
         </aside>
       </div>

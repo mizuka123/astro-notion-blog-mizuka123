@@ -268,12 +268,27 @@ export const getStaticFilePath = (path: string): string => {
 // Markdown ページの frontmatter.url のような "すでに BASE_PATH 込み" の値を
 // 渡してはいけない（二重に付いて /blog/blog/posts/foo になる）。
 // 剥がしてから渡したい場合は stripBasePath() を使うこと
+/**
+ * ページの URL を、実際に 200 を返す形（末尾スラッシュ付き）に揃える。
+ *
+ * Astro は既定でページを <パス>/index.html として出力するため、配信側は
+ * /archive/6474/ で 200 を返し、/archive/6474 は 308 で /archive/6474/ へ
+ * 転送する。これまではリンクも canonical も転送される側を指しており、
+ * 実測では内部リンク 9322 本すべてと 642 ページ分の canonical が
+ * 308 を挟んでいた。sitemap は末尾スラッシュ付きを載せているので、
+ * canonical・sitemap・実 URL の 3 つが食い違っている状態だった。
+ *
+ * 静的ファイル（getStaticFilePath）には付けないこと。
+ */
+export const withTrailingSlash = (url: string): string =>
+  url.endsWith('/') ? url : `${url}/`
+
 export const getNavLink = (nav: string) => {
-  if ((!nav || nav === '/') && BASE_PATH) {
-    return pathJoin(BASE_PATH, '') + '/'
+  if (!nav || nav === '/') {
+    return BASE_PATH ? pathJoin(BASE_PATH, '') + '/' : '/'
   }
 
-  return pathJoin(BASE_PATH, nav)
+  return withTrailingSlash(pathJoin(BASE_PATH, nav))
 }
 
 // BASE_PATH 込みのパスから BASE_PATH を取り除いて生パスに戻す。
@@ -298,23 +313,28 @@ export const stripBasePath = (path: string): string => {
 }
 
 export const getPostLink = (slug: string) => {
-  return pathJoin(BASE_PATH, `/posts/${slug}`)
+  return withTrailingSlash(pathJoin(BASE_PATH, `/posts/${slug}`))
 }
 
 export const getTagLink = (tag: string) => {
-  return pathJoin(BASE_PATH, `/posts/tag/${encodeURIComponent(tag)}`)
+  return withTrailingSlash(
+    pathJoin(BASE_PATH, `/posts/tag/${encodeURIComponent(tag)}`)
+  )
 }
 
 export const getPageLink = (page: number, tag: string) => {
   if (page === 1) {
-    return tag ? getTagLink(tag) : pathJoin(BASE_PATH, '/')
+    // 1 ページ目にはページ番号が付かない。タグ無しならトップページ
+    return tag ? getTagLink(tag) : getNavLink('/')
   }
-  return tag
-    ? pathJoin(
-        BASE_PATH,
-        `/posts/tag/${encodeURIComponent(tag)}/page/${page.toString()}`
-      )
-    : pathJoin(BASE_PATH, `/posts/page/${page.toString()}`)
+  return withTrailingSlash(
+    tag
+      ? pathJoin(
+          BASE_PATH,
+          `/posts/tag/${encodeURIComponent(tag)}/page/${page.toString()}`
+        )
+      : pathJoin(BASE_PATH, `/posts/page/${page.toString()}`)
+  )
 }
 
 export const getDateStr = (date: string) => {
