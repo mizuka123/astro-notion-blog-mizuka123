@@ -20,7 +20,13 @@ const [rankedPosts, tags, recentPosts] = await Promise.all([
 ])
 ---
 
-<Layout title="ページが見つかりません" path="/404" noindex>
+<Layout
+  title="ページが見つかりません"
+  description="お探しのページは見つかりませんでした。"
+  path="/404"
+  noindex
+  noAds
+>
   <div slot="main" class={styles.main}>
     <h2>ページが見つかりません</h2>
     <p>

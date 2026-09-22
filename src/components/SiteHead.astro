@@ -12,6 +12,14 @@ export interface Props {
   // true のときは canonical と og:url を出さない。存在しない URL で
   // 配信されるページに「この URL が正規」と宣言させないため
   noindex?: boolean
+  // 広告とアフィリエイトのスクリプトを出さない。
+  // Google の Publisher Policies は «エラーページへの広告掲載を明確に禁止»
+  // している（"Ads should not be placed on 'dead end' or no content screens
+  // (e.g., Thank You, Exit, Error pages, etc.)"）。違反はそのページの配信停止、
+  // 繰り返せばアカウント単位の措置につながる。
+  // noindex とは別にしてあるのは、「インデックスさせない」と「広告を出さない」が
+  // 別の判断だから。片方だけ必要になったときに巻き添えで壊れないようにする
+  noAds?: boolean
 }
 
 // このコンポーネントの利用箇所は Layout.astro と LayoutMd.astro だけで、
@@ -25,6 +33,7 @@ const {
   path = '/',
   ogImage = '',
   noindex = false,
+  noAds = false,
 } = Astro.props
 
 const database = await getDatabase()
@@ -79,16 +88,30 @@ const siteOGImage = new URL(
     vc_pid の定義が先に実行される必要があるので、2 つの順序は変えないこと
   */
 }
-<script is:inline type="text/javascript">
-  window.vc_pid = '892700549'
-</script>
-<script
-  is:inline
-  type="text/javascript"
-  src="//aml.valuecommerce.com/vcdal.js"
-  async></script>
+{
+  !noAds && (
+    <Fragment>
+      <script is:inline type="text/javascript">
+        window.vc_pid = '892700549'
+      </script>
+      <script
+        is:inline
+        type="text/javascript"
+        src="//aml.valuecommerce.com/vcdal.js"
+        async
+      />
 
-<script type="text/javascript" src="//mlb.valuecommerce.com/mylinkbox.js" async></script>
-<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8748150415175448"
-crossorigin="anonymous"></script>
+      <script
+        type="text/javascript"
+        src="//mlb.valuecommerce.com/mylinkbox.js"
+        async
+      />
+      <script
+        async
+        src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8748150415175448"
+        crossorigin="anonymous"
+      />
+    </Fragment>
+  )
+}
 <link rel="sitemap" href="/sitemap-index.xml">

@@ -21,6 +21,8 @@ export interface Props {
   ogImage?: string
   // 404 ページ用。SiteHead に素通しする（canonical を出さず noindex にする）
   noindex?: boolean
+  // 広告とアフィリエイトのスクリプトを出さない。SiteHead に素通しする
+  noAds?: boolean
 }
 
 // path のデフォルトは '/'（トップページ）。省略するとそのページの canonical と
@@ -34,6 +36,7 @@ const {
   path = '/',
   ogImage = '',
   noindex = false,
+  noAds = false,
 } = Astro.props
 
 const database = await getDatabase()
@@ -50,6 +53,7 @@ const { coverImageURL, customIconURL } = getDatabaseImageURLs(database)
       path={path}
       ogImage={ogImage}
       noindex={noindex}
+      noAds={noAds}
     />
   </head>
   <body>
