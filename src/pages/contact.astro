@@ -1,22 +1,20 @@
 ---
-import { NUMBER_OF_POSTS_PER_PAGE } from '../server-constants.ts'
-import {
-  getPosts,
-  getRankedPosts,
-  getAllTags,
-  getNumberOfPages,
-} from '../lib/notion/client.ts'
+import { getPosts, getRankedPosts, getAllTags } from '../lib/notion/client.ts'
 import Layout from '../layouts/Layout.astro'
 import BlogPostsLink from '../components/BlogPostsLink.astro'
 import BlogTagsLink from '../components/BlogTagsLink.astro'
 import styles from '../styles/blog.module.css'
 
 
+// index.astro からコピーしたときに受け取り側だけ 3 つに減らしたため、
+// 変数と中身が 1 つずつずれていた。「最新記事」にタグの配列が渡って
+// /posts/undefined へのリンクが 5 本出力され、「Categories」には
+// ランキング記事が渡って There are no contents yet になっていた。
+// このページはページ送りをしないので、使う 3 つだけを呼ぶ
+// （archive/index.astro と LayoutMd.astro も同じ形）
 const [rankedPosts, tags, recentPosts] = await Promise.all([
-  getPosts(NUMBER_OF_POSTS_PER_PAGE),
   getRankedPosts(),
   getAllTags(),
-  getNumberOfPages(),
   getPosts(5),
 ])
 ---
