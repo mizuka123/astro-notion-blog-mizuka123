@@ -8,6 +8,10 @@ export interface Props {
   description?: string
   path?: string
   ogImage?: string
+  // 404 ページのように、URL が固定されずインデックスさせたくないページ用。
+  // true のときは canonical と og:url を出さない。存在しない URL で
+  // 配信されるページに「この URL が正規」と宣言させないため
+  noindex?: boolean
 }
 
 // このコンポーネントの利用箇所は Layout.astro と LayoutMd.astro だけで、
@@ -15,7 +19,13 @@ export interface Props {
 // もし他から直接使うことになったら、path を省略した時点で canonical と
 // og:url がトップページを指してしまうので必ず渡すこと
 // （/archive/ と /contact/ で実際に起きた。Layout.astro のコメント参照）
-const { title = '', description = '', path = '/', ogImage = '' } = Astro.props
+const {
+  title = '',
+  description = '',
+  path = '/',
+  ogImage = '',
+  noindex = false,
+} = Astro.props
 
 const database = await getDatabase()
 
@@ -29,13 +39,16 @@ const siteOGImage = new URL(
 ---
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<meta name="robots" content="max-image-preview:large" />
+<meta
+  name="robots"
+  content={noindex ? 'noindex' : 'max-image-preview:large'}
+/>
 <meta charset="UTF-8" />
 <meta name="generator" content={Astro.generator} />
 <title>{siteTitle}</title>
 <meta name="description" content={siteDescription} />
-<link rel="canonical" href={siteURL} />
-<meta property="og:url" content={siteURL} />
+{!noindex && <link rel="canonical" href={siteURL} />}
+{!noindex && <meta property="og:url" content={siteURL} />}
 <meta property="og:title" content={siteTitle} />
 <meta property="og:description" content={siteDescription} />
 <meta property="og:site_name" content={database.Title} />
