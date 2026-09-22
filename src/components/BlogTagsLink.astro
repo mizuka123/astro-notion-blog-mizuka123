@@ -1,7 +1,6 @@
 ---
 import type { SelectProperty } from '../lib/interfaces.ts'
 import { getTagLink } from '../lib/blog-helpers.ts'
-import NoContents from './NoContents.astro'
 import '../styles/notion-color.css'
 
 export interface Props {
@@ -12,12 +11,15 @@ export interface Props {
 const { heading, tags } = Astro.props
 ---
 
-<div class="blog-tags-link">
-  <h2>{heading}</h2>
-  {
-    tags.length === 0 ? (
-      <NoContents contents={tags} />
-    ) : (
+{
+  /* BlogPostsLink と同じ方針で、中身が無いときはセクションごと出さない。
+     現状タグは 5 件あるので出力は変わらないが、片方だけ「There are no
+     contents yet」が残ると挙動が食い違うので揃えておく */
+}
+{
+  tags.length > 0 && (
+    <div class="blog-tags-link">
+      <h2>{heading}</h2>
       <ul>
         {tags.map((tag: SelectProperty) => (
           <li>
@@ -27,9 +29,9 @@ const { heading, tags } = Astro.props
           </li>
         ))}
       </ul>
-    )
-  }
-</div>
+    </div>
+  )
+}
 
 <style>
   .blog-tags-link {

@@ -1,7 +1,6 @@
 ---
-import { Post } from '../lib/interfaces.ts'
+import type { Post } from '../lib/interfaces.ts'
 import { getIconImageURL, getPostLink } from '../lib/blog-helpers.ts'
-import NoContents from './NoContents.astro'
 
 export interface Props {
   heading: string
@@ -21,12 +20,19 @@ const iconImageURLs = new Map<string, string | undefined>(
 )
 ---
 
-<div class="blog-posts-link">
-  <h2>{heading}</h2>
-  {
-    posts.length === 0 ? (
-      <NoContents contents={posts} />
-    ) : (
+{
+  /*
+    中身が無いときはセクションごと出さない。
+    以前は見出しの下に「There are no contents yet」を出していたが、
+    「おすすめ記事」は Notion の Rank が付いた記事が 1 件も無いため
+    全 642 ページで空になっており、読者には壊れているように見えていた。
+    サイドバーの補助的な枠なので、出せるものが無いなら黙って消す
+  */
+}
+{
+  posts.length > 0 && (
+    <div class="blog-posts-link">
+      <h2>{heading}</h2>
       <ul>
         {posts.map((post: Post) => (
           <li>
@@ -56,9 +62,9 @@ const iconImageURLs = new Map<string, string | undefined>(
           </li>
         ))}
       </ul>
-    )
-  }
-</div>
+    </div>
+  )
+}
 
 <style>
   .blog-posts-link {
