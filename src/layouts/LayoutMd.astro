@@ -34,6 +34,9 @@ interface ArchiveLayoutFrontmatter {
   title: string
   date: string
   coverImage?: string
+  // 記事側には書かれていない。remark-archive-description が本文から作って
+  // file.data.astro.frontmatter に入れたものを受け取る
+  description?: string
 }
 
 // Markdown レイアウトなので frontmatter / file / url などは Astro が渡す。
@@ -60,7 +63,9 @@ const [rankedPosts, tags, recentPosts] = await Promise.all([
 // '/blog/blog/archive/100' になる。stripBasePath() で剥がしてから渡す
 const {
   title = frontmatter.title,
-  description = '',
+  // 空文字のときは SiteHead が Notion のデータベース説明に落とす。
+  // 本文が取れなかった記事は従来どおりの挙動になる
+  description = frontmatter.description ?? '',
   path = frontmatter.url ? stripBasePath(frontmatter.url) : frontmatter.url,
   ogImage: ogImageProp,
 } = Astro.props

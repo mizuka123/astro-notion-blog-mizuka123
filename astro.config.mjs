@@ -8,6 +8,7 @@ import FileIconDownloader from './src/integrations/file-icon-downloader';
 import OgImageGenerator from './src/integrations/og-image-generator';
 import PublicNotionCopier from './src/integrations/public-notion-copier';
 import rehypeImageDimensions from './src/lib/rehype-image-dimensions';
+import remarkArchiveDescription from './src/lib/remark-archive-description';
 import rehypeLazyImages from './src/lib/rehype-lazy-images';
 import rehypeProductBox from './src/lib/rehype-product-box';
 import sitemap from '@astrojs/sitemap';
@@ -45,6 +46,9 @@ export default defineConfig({
     // rehypeProductBox は <p> を <div> で包み直すだけで画像の順序を
     // 変えないため、3 つの順序はどれでも結果は同じ
     rehypePlugins: [rehypeProductBox, rehypeLazyImages, rehypeImageDimensions],
+    // 本文から meta description を作る。frontmatter に description の
+    // 項目が無いため、remark 側で file.data.astro.frontmatter に書き込む
+    remarkPlugins: [remarkArchiveDescription],
   },
   integrations: [
     icon(),
