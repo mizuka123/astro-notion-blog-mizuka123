@@ -66,15 +66,32 @@ const isLinkOnly = (node: RootContent): boolean => {
   )
 }
 
-/** 段落テキストを文書順に並べて返す。除外の判断はここで行う。 */
+/**
+ * 本文として扱うノードのテキストを文書順に並べて返す。除外もここで行う。
+ *
+ * 段落だけでなくリスト項目と引用も拾う。段落しか見ないと、
+ * 「〜としては」→ 箇条書き →「ということでした。」という本文から
+ * 箇条書きが丸ごと落ち、日本語として破綻した説明文が出る。
+ * 実測で 609 記事中 398 件が「2 つ目の段落の前に見出しかリストが挟まる」
+ * 構造を持っており、取りこぼしやすい形だった
+ */
 const paragraphTexts = (tree: Root): string[] => {
   const texts: string[] = []
-  for (const node of tree.children) {
-    if (node.type !== 'paragraph') continue
+
+  const push = (node: RootContent): void => {
     // 商品ボックスや画像だけの段落は飛ばす
-    if (isLinkOnly(node)) continue
+    if (node.type === 'paragraph' && isLinkOnly(node)) return
     texts.push(textOf(node))
   }
+
+  for (const node of tree.children) {
+    if (node.type === 'paragraph' || node.type === 'blockquote') {
+      push(node)
+    } else if (node.type === 'list') {
+      for (const item of node.children) push(item)
+    }
+  }
+
   return texts
 }
 

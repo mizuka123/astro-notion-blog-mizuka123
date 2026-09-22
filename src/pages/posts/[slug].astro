@@ -127,7 +127,7 @@ if (post.FeaturedImage && post.FeaturedImage.Url) {
 
 <Layout
   title={post.Title}
-  description={post.Excerpt || descriptionFromBlocks(blocks)}
+  description={post.Excerpt.trim() || descriptionFromBlocks(blocks)}
   path={`/posts/${post.Slug}`}
   ogImage={ogImage}
 >
