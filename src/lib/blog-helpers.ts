@@ -268,28 +268,28 @@ export const getStaticFilePath = (path: string): string => {
 // Markdown ページの frontmatter.url のような "すでに BASE_PATH 込み" の値を
 // 渡してはいけない（二重に付いて /blog/blog/posts/foo になる）。
 // 剥がしてから渡したい場合は stripBasePath() を使うこと
+export const getNavLink = (nav: string): string => {
+  // 以前はここで nav === '/' を特別扱いしていたが、withTrailingSlash を
+  // 通すようになって不要になった（pathJoin('', '') が '/' を返すため）。
+  // BASE_PATH と nav の組み合わせ 28 通りで戻り値が変わらないことを確認済み
+  return withTrailingSlash(pathJoin(BASE_PATH, nav))
+}
+
 /**
  * ページの URL を、実際に 200 を返す形（末尾スラッシュ付き）に揃える。
  *
  * Astro は既定でページを <パス>/index.html として出力するため、配信側は
  * /archive/6474/ で 200 を返し、/archive/6474 は 308 で /archive/6474/ へ
- * 転送する。これまではリンクも canonical も転送される側を指しており、
- * 実測では内部リンク 9322 本すべてと 642 ページ分の canonical が
- * 308 を挟んでいた。sitemap は末尾スラッシュ付きを載せているので、
+ * 転送する。これまではリンクも canonical も転送される側を指していた。
+ * sitemap だけが末尾スラッシュ付きを載せていたため、
  * canonical・sitemap・実 URL の 3 つが食い違っている状態だった。
  *
- * 静的ファイル（getStaticFilePath）には付けないこと。
+ * 渡すのはパス部分だけにすること。クエリやフラグメントを含む文字列だと
+ * '/posts/foo?q=1/' のように末尾に付いてしまう。
+ * 静的ファイル（getStaticFilePath）には使わないこと。
  */
 export const withTrailingSlash = (url: string): string =>
   url.endsWith('/') ? url : `${url}/`
-
-export const getNavLink = (nav: string) => {
-  if (!nav || nav === '/') {
-    return BASE_PATH ? pathJoin(BASE_PATH, '') + '/' : '/'
-  }
-
-  return withTrailingSlash(pathJoin(BASE_PATH, nav))
-}
 
 // BASE_PATH 込みのパスから BASE_PATH を取り除いて生パスに戻す。
 // Astro が組み立てる Markdown ページの frontmatter.url は base 込みなので
