@@ -18,6 +18,7 @@ import {
   ogImageUrlPath,
   ogImageLocalPath,
 } from '../../lib/blog-helpers.ts'
+import { descriptionFromBlocks } from '../../lib/notion-description.ts'
 import Layout from '../../layouts/Layout.astro'
 import PostDate from '../../components/PostDate.astro'
 import PostTags from '../../components/PostTags.astro'
@@ -126,7 +127,7 @@ if (post.FeaturedImage && post.FeaturedImage.Url) {
 
 <Layout
   title={post.Title}
-  description={post.Excerpt}
+  description={post.Excerpt.trim() || descriptionFromBlocks(blocks)}
   path={`/posts/${post.Slug}`}
   ogImage={ogImage}
 >
