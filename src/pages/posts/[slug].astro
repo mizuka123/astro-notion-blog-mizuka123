@@ -123,6 +123,10 @@ if (post.FeaturedImage && post.FeaturedImage.Url) {
 // getNavLink 側が BASE_PATH を足すため、ここで getPostLink()（BASE_PATH 込み）
 // を渡すと二重に付いて /blog/blog/posts/<slug> のように壊れる。
 // 一覧系ページ（/posts/page/N など）もすべて生パスを渡している
+//
+// articleDate は構造化データの datePublished になる。Notion の Date
+// プロパティが未設定だと client.ts が空文字を入れるため、SiteHead 側で
+// 空なら JSON-LD ごと出さない。日付の無い記事に嘘の日付を付けないため
 ---
 
 <Layout
@@ -130,6 +134,7 @@ if (post.FeaturedImage && post.FeaturedImage.Url) {
   description={post.Excerpt.trim() || descriptionFromBlocks(blocks)}
   path={`/posts/${post.Slug}`}
   ogImage={ogImage}
+  articleDate={post.Date}
 >
   <div slot="main" class={styles.main}>
     <div class={styles.post}>

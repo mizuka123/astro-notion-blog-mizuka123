@@ -20,6 +20,13 @@ export interface Props {
   // noindex とは別にしてあるのは、「インデックスさせない」と「広告を出さない」が
   // 別の判断だから。片方だけ必要になったときに巻き添えで壊れないようにする
   noAds?: boolean
+  // 記事ページからだけ渡す公開日（'YYYY-MM-DD' か ISO 8601）。
+  // これが入っているページだけ記事用の構造化データを出す。
+  // 「記事かどうか」を path の形で判定しないのは、一覧も記事と同じ
+  // /posts/ 配下（/posts/page/2、/posts/tag/gadget）にあり、
+  // パスの正規表現では «記事ページだけ» を切り出せないため。
+  // 公開日を持っているのは記事ページだけなので、それを目印にする
+  articleDate?: string
 }
 
 // このコンポーネントの利用箇所は Layout.astro と LayoutMd.astro だけで、
@@ -34,6 +41,7 @@ const {
   ogImage = '',
   noindex = false,
   noAds = false,
+  articleDate = '',
 } = Astro.props
 
 const database = await getDatabase()
@@ -45,6 +53,54 @@ const siteOGImage = new URL(
   getStaticFilePath('/default-og-image.png'),
   Astro.site
 )
+
+/*
+ * 記事ページの構造化データ（JSON-LD）。
+ *
+ * 全 643 ページのうち JSON-LD を持つページが 0 だった。検索エンジンには
+ * 「いつ書かれた、誰の、何という記事か」を HTML から推測させるしかなく、
+ * 検索結果に日付や記事としての扱いが出ない。
+ *
+ * ここで組み立てているのは、この同じファイルが <title> / description /
+ * canonical / og:image を導出しているから。別のコンポーネントに切り出すと
+ * 同じ導出が 2 か所になり、片方だけ直したときに «構造化データとページの
+ * 表示が食い違う» 状態になる。Google はこの不一致をスパムとして扱う。
+ * 逆にここに置く限り、出る値は meta タグと必ず同じものになる。
+ *
+ * dateModified は出さない。アーカイブ記事の frontmatter（layout / title /
+ * date / categories / tags / coverImage）にも Notion のデータベースにも
+ * 更新日に当たる項目が無く、公開日で代用すれば «更新していないのに
+ * 更新したと申告する» ことになる。取れない値は出さない。
+ * publisher.logo も同じ理由で出さない。データベースのアイコンは
+ * emoji のこともあり、画像でも Google が求める比率を満たす保証が無い
+ */
+const articleJsonLd =
+  articleDate && title
+    ? {
+        '@context': 'https://schema.org',
+        '@type': 'BlogPosting',
+        headline: title,
+        description: siteDescription,
+        image: (ogImage || siteOGImage).toString(),
+        datePublished: articleDate,
+        mainEntityOfPage: { '@type': 'WebPage', '@id': siteURL },
+        url: siteURL,
+        // 著者名も発行者名も Notion のデータベースタイトルから取る。
+        // 個人名は Notion 側にもリポジトリにも無いので、実在しない名前を
+        // 作らず、og:site_name と同じ値（＝ブログ自体）を主体として出す
+        author: { '@type': 'Organization', name: database.Title },
+        publisher: { '@type': 'Organization', name: database.Title },
+      }
+    : null
+
+// JSON をそのまま <script> に入れると、記事タイトルや説明文に
+// '</script>' や '<!--' が含まれたときにスクリプトがそこで閉じ、
+// 以降の <head> が壊れる。'<' をユニコードエスケープに置き換えれば JSON としての
+// 値は変わらないまま無害化できる。実測では現在の 632 記事に該当は
+// 無いが、記事は Notion から増えるので入力側の性質には頼らない
+const articleJsonLdText = articleJsonLd
+  ? JSON.stringify(articleJsonLd).replace(/</g, '\\u003c')
+  : ''
 ---
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -66,6 +122,17 @@ const siteOGImage = new URL(
 <meta name="twitter:description" content={siteDescription} />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:image" content={ogImage || siteOGImage} />
+{
+  /*
+    is:inline を付けているのは、Astro に «中身を触らせない» ことを
+    明示するため。set:html で入れた JSON は整形も最適化もされては困る
+  */
+}
+{
+  articleJsonLdText && (
+    <script type="application/ld+json" is:inline set:html={articleJsonLdText} />
+  )
+}
 <link
   rel="stylesheet"
   href="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.css"

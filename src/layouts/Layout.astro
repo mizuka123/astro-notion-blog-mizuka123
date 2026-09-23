@@ -23,6 +23,10 @@ export interface Props {
   noindex?: boolean
   // 広告とアフィリエイトのスクリプトを出さない。SiteHead に素通しする
   noAds?: boolean
+  // 記事ページ（/posts/[slug]）だけが渡す公開日。SiteHead に素通しする。
+  // 渡した場合だけ記事用の JSON-LD が出る。一覧系（index / posts/page /
+  // posts/tag）と 404 は渡さないので、記事用の型が付くことはない
+  articleDate?: string
 }
 
 // path のデフォルトは '/'（トップページ）。省略するとそのページの canonical と
@@ -37,6 +41,7 @@ const {
   ogImage = '',
   noindex = false,
   noAds = false,
+  articleDate = '',
 } = Astro.props
 
 const database = await getDatabase()
@@ -54,6 +59,7 @@ const { coverImageURL, customIconURL } = getDatabaseImageURLs(database)
       ogImage={ogImage}
       noindex={noindex}
       noAds={noAds}
+      articleDate={articleDate}
     />
   </head>
   <body>

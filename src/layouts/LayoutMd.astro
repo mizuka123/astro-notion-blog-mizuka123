@@ -32,6 +32,8 @@ import styles from '../styles/blog.module.css'
 // 名前が衝突しないよう別名にしてある
 interface ArchiveLayoutFrontmatter {
   title: string
+  // 本文上部の日付表示と、SiteHead に渡す構造化データの datePublished を
+  // 兼ねる。全 609 件が持っているので、アーカイブ記事は例外なく JSON-LD が付く
   date: string
   coverImage?: string
   // 記事側には書かれていない。remark-archive-description が本文から作って
@@ -102,6 +104,7 @@ const post: Pick<Post, 'Date' | 'Title'> = {
       description={description}
       path={path}
       ogImage={ogImage}
+      articleDate={frontmatter.date}
     />
   </head>
   <body>
