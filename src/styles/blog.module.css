@@ -12,6 +12,47 @@
   }
 }
 
+/*
+ * 一覧系ページの «そのページの主題» を表す見出し（h1）。
+ * /category/<slug>/ /tag/<slug>/ /tag/ /404 /archive/ /contact/ が使う。
+ *
+ * 前の 4 つは変更前 <h2> で出していたものを <h1> に変えただけ、
+ * 後の 2 つは見出しが無かったので新しく出したもの（Issue #98）。
+ * 6 ページ種別で同じ見た目になるよう 1 箇所にまとめてある。
+ *
+ * 値はこのサイトの «素の h2» の計算値。src/layouts/Layout.astro の h2 が
+ * margin: 0 → padding: 1em 1.1em → margin-top: 2.1em → margin-bottom: 1em の
+ * 順で指定していて最終的に margin: 2.1em 0 1em、
+ * src/styles/layout-global.css の h2 が line-height: 1.3 / font-size: 1.2rem /
+ * font-weight: normal。h1 のまま放っておくと layout-global.css の
+ * h1（2rem / 700）になり、すぐ上のサイト名と同じ大きさの太字が 2 行並ぶ。
+ *
+ * 注意: これは /404 と /contact/ の «変更前» と一致するが、
+ * /category/ 27 枚・/tag/ 271 枚・/tag/ 1 枚の 299 枚とは一致しない。
+ * その 299 枚には LayoutMd.astro の <style is:global> が
+ * «配信されてしまっている»（src/lib/archive-taxonomy.ts の
+ * import.meta.glob がアーカイブの md を引き込むため）。その中の
+ * h2 { margin: 0 } が後ろに来るので、変更前の余白は 2.1em ではなく 0、
+ * モバイルの font-size も h2,h3 { font-size: 1.15rem } で 1.15rem だった。
+ *
+ * つまり «同じ見た目の一覧ページ» が、アーカイブの md を glob するか
+ * どうかという偶然で 2 通りに分かれていた。ここではサイトの素の h2 に
+ * 揃える側を採る。結果、299 枚で実測どおり次のように変わる。
+ *   margin-top    0px → 40.32px
+ *   margin-bottom 0px → 19.2px
+ *   375px 幅では加えて font-size 18.4px → 19.2px、
+ *   line-height 23.92px → 24.96px、padding も em 指定なので連動して
+ *   18.4px → 19.2px / 20.24px → 21.12px
+ * 配信の漏れ自体は別途直す（#123）
+ */
+.pageHeading {
+  margin: 2.1em 0 1em;
+  padding: 1em 1.1em;
+  line-height: 1.3;
+  font-size: 1.2rem;
+  font-weight: normal;
+}
+
 .post {
   margin: 0 auto 40px;
 }

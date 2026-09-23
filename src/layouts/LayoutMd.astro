@@ -134,7 +134,15 @@ const post: Pick<Post, 'Date' | 'Title'> = {
         <main>
           <div class="content">
             <header>
-              <h1>
+              {/*
+                サイト名は <h1> ではなく <p>。このレイアウトを使うのは
+                アーカイブ記事 609 ページで、どれもトップページではない＝
+                そのページの主題はサイト名ではなく記事タイトルなので、
+                h1 は下の .archive-title に譲る。
+                Layout.astro は path==='/' のときだけ h1 を出すが、
+                こちらは «常にトップページではない» ので分岐が要らない
+              */}
+              <p class="site-title">
                 <a href={getNavLink('/')}>
                   {
                     database.Icon && database.Icon.Type === 'emoji' ? (
@@ -157,14 +165,22 @@ const post: Pick<Post, 'Date' | 'Title'> = {
                     )
                   }
                 </a>
-              </h1>
+              </p>
               <div class="description">
                 {database.Description}
               </div>
             </header>
 
             <PostDate post={post} />
-            <h3>{post.Title}</h3>
+            {/*
+              記事タイトルがこのページの主題なので <h1>。変更前は <h3> で、
+              その上にサイト名の <h1> があったため、アーカイブ 609 ページは
+              h1（サイト名）→ h3（記事タイトル）→ h4（本文見出し）と
+              h2 を飛ばしていた（Issue #98）。
+              見た目は .archive-title で h3 のときのまま据え置いている
+              （下の <style is:global> を参照）
+            */}
+            <h1 class="archive-title">{post.Title}</h1>
 
             <slot />
           
@@ -283,34 +299,56 @@ const post: Pick<Post, 'Date' | 'Title'> = {
   main header {
     padding: 20px 0 20px;
   }
-  main header h1 {
+  /*
+   * ヘッダーのサイト名。トップページだけ <h1>、それ以外は <p> で出す
+   * （Layout.astro の SiteTitleTag と LayoutMd.astro の <p class="site-title">）。
+   * セレクタを h1 から .site-title に変えてあるのは、要素が変わっても
+   * 同じ宣言が当たり続けるようにするため。
+   *
+   * margin / font-size / line-height は «h1 のときに効いていた値» を
+   * そのまま書き写したもの。src/styles/layout-global.css の h1 は
+   * margin:0 と font-size:2rem（640px 以下で 1.6rem）で、line-height の
+   * 指定が無い＝normal。<p> にすると代わりに同ファイルの p ルール
+   * （color:#222 / font-weight:400 / font-size:1rem / line-height:1.8rem）が
+   * 当たるので、4 つとも明示して打ち消す。これで <h1> のときと
+   * <p> のときで計算値が一致し、見た目が変わらない
+   */
+  main header .site-title {
+    margin: 0;
+    font-size: 2rem;
+    line-height: normal;
     font-weight: 700;
     color: #333;
   }
-  main header h1 a {
+  @media (max-width: 640px) {
+    main header .site-title {
+      font-size: 1.6rem;
+    }
+  }
+  main header .site-title a {
     display: block;
     color: inherit;
   }
-  main header h1 a:hover {
+  main header .site-title a:hover {
     color: inherit;
   }
-  main header h1 a span,
-  main header h1 a img {
+  main header .site-title a span,
+  main header .site-title a img {
     display: inline-block;
     font-size: 1.1em;
   }
-  main header h1 a span {
+  main header .site-title a span {
     margin-right: 0.3em;
     margin-left: -0.1rem;
   }
-  main header h1 a img {
+  main header .site-title a img {
     width: 1.2em;
     height: 1.2em;
     margin-right: 0.2em;
     margin-left: -0.3rem;
     vertical-align: sub;
   }
-  main header h1 a img.custom-icon {
+  main header .site-title a img.custom-icon {
     border-radius: var(--radius);
   }
 
@@ -356,6 +394,60 @@ const post: Pick<Post, 'Date' | 'Title'> = {
     }
   }
 
+  /*
+   * アーカイブ記事のタイトル（上の <h1 class="archive-title">）。
+   * 変更前は <h3> で、src/styles/layout-global.css の h3
+   * （margin:0 / color:var(--fg) / font-size:1.2rem / font-weight:700）と
+   * 上の @media の h3（1.15rem）が当たっていた。h1 にすると同ファイルの
+   * h1（font-size:2rem、640px 以下 1.6rem）に変わり、すぐ上のサイト名と
+   * «同じ大きさの太字が 2 行» 並ぶ。h3 のときの計算値を書き写して
+   * 見た目を据え置く。Issue #98 で直すのは見出しの «段» であって、
+   * 見た目を作り直すかどうかは別の判断
+   */
+  .archive-title {
+    margin: 0;
+    color: var(--fg);
+    font-size: 1.2rem;
+    font-weight: 700;
+  }
+  @media (max-width: 640px) {
+    .archive-title {
+      font-size: 1.15rem;
+    }
+  }
+
+  /*
+   * アーカイブ本文の見出し。src/lib/rehype-archive-headings.ts が
+   * markdown の見出しをすべて h2 に揃えている（実測: 609 記事のうち
+   * 397 ファイルに見出しが計 1,984 個。内訳は #### が 1,979 個と
+   * # が 4 ファイルに 5 個で、## / ### / ##### / ###### は 0 個）。
+   *
+   * 変更前の #### は h4 で、このサイトの CSS には h4 の宣言が 1 つも
+   * 無いためブラウザ既定（font-size:1em / font-weight:bold /
+   * margin:1.33em 0）のままだった。h2 になると
+   * src/styles/layout-global.css の h2（font-size:1.2rem /
+   * font-weight:normal / line-height:1.3）と、上の h2（margin:0）が
+   * 当たって «太字が外れて上下の余白が消える»。既定値を書き写して
+   * 見た目を据え置く。
+   *
+   * タグ名（.content h2）ではなく class で当てているのは、この
+   * <style is:global> が «アーカイブ記事以外にも配信される» ため。
+   * src/lib/archive-taxonomy.ts の import.meta.glob が
+   * アーカイブの md をモジュールグラフに引き込むので、LayoutMd.astro の
+   * global CSS が /category/ 27 枚・/tag/ 271 枚・/tag/ 1 枚・
+   * /archive/ 1 枚にも載る（実測で 909 枚）。
+   * .content h2 と書いていたときは、実際に /archive/ の
+   * «カテゴリーから探す» と «すべての記事» が 1.2rem/400 から
+   * 1rem/700 に変わってしまっていた。
+   * class なら、CSS が配信されてもアーカイブ本文以外には当たらない
+   */
+  .archive-body-heading {
+    margin: 1.33em 0;
+    font-size: 1rem;
+    font-weight: bold;
+    line-height: normal;
+  }
+
   code {
     background: #f1f1f1;
   }
@@ -377,7 +469,11 @@ const post: Pick<Post, 'Date' | 'Title'> = {
     text-decoration: underline;
   }
 
-  .content h1 a {
+  /* ヘッダーのサイト名のリンク。上の .content a が付ける下線を外す。
+     変更前は .content h1 a だったが、サイト名が <p class="site-title"> に
+     なって h1 では拾えなくなった。今の .content 配下の h1 は
+     «記事タイトル»（.archive-title）で、中にリンクを持たない */
+  .content .site-title a {
     text-decoration: none;
   }
 

@@ -75,7 +75,9 @@ const [rankedPosts, tags, recentPosts] = await Promise.all([
   noAds={thin}
 >
   <div slot="main" class={styles.main}>
-    <h2>{title}</h2>
+    {/* h1 にする理由と見た目の据え置きは
+        src/pages/category/[category].astro と同じ（Issue #98） */}
+    <h1 class={styles.pageHeading}>{title}</h1>
     <p>{description}</p>
     <ul class={taxonomyStyles.entries}>
       {

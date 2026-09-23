@@ -90,9 +90,19 @@ const description =
 <Layout title={title} description={description} path={`/posts/tag/${tag}`}>
   <div slot="main" class={styles.main}>
     <header>
-      <div class="tag-container">
-        <span class={`tag ${currentTag.color}`}>{tag}</span>
-      </div>
+      {/*
+        変更前はタグ名のチップが入った <div> だけで、このページには
+        主題を示す見出しが無かった（h1 はサイト名。Issue #98）。
+        同じ場所を h1 にして、上の title と同じ «「◯◯」タグの記事一覧» を出す。
+        title の «「」» にあたる部分は元からあるチップが受け持つので、
+        読み上げは「ガジェット タグの記事一覧」になる。
+        チップを残したまま «「ガジェット」» を重ねて書くと、同じタグ名が
+        画面に 2 回出てしまう。
+        見た目は .tag-container のまま（下の <style> を参照）
+      */}
+      <h1 class="tag-container">
+        <span class={`tag ${currentTag.color}`}>{tag}</span> タグの記事一覧
+      </h1>
     </header>
 
     {

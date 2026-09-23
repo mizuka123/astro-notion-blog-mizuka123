@@ -93,6 +93,14 @@ const description = `アーカイブ記事 ${sortedPosts.length} 件をすべて
   path="/archive"
 >
   <div slot="main" class={styles.main}>
+    {/*
+      このページには «ページの主題を示す見出し» が無く、h1 はサイト名、
+      本文の先頭がいきなり「カテゴリーから探す」の h2 だった（Issue #98）。
+      文言は上の Layout に渡している siteTitle（＝<title> の「アーカイブ一覧」）
+      と同じにして、タブのタイトルと画面の見出しを食い違わせない。
+      見た目は既にある h2 と同じ（src/styles/blog.module.css の .pageHeading）
+    */}
+    <h1 class={styles.pageHeading}>{siteTitle}</h1>
     <h2>カテゴリーから探す</h2>
     <ul class={taxonomyStyles.taxonomyLinks}>
       {
