@@ -1,7 +1,16 @@
 ---
+import { getStaticFilePath } from '../lib/blog-helpers'
+
+// インデックスの URL は Astro 側で組み立てて data 属性で渡す。
+// 以前は script の中で location から `${protocol}//${hostname}${port}/feed`
+// を組み直していたが、これだと BASE_PATH がサブディレクトリに設定された
+// 環境で 404 になる（現在の BASE_PATH は '' なので表には出ていなかった）。
+// define:vars を使うと script がインライン化されてバンドルから外れ、
+// 5KB 弱のスクリプトが全 642 ページに直書きされてしまうので、data 属性にした
+const searchIndexPath = getStaticFilePath('/search-index.json')
 ---
 
-<div class="search-modal-container">
+<div class="search-modal-container" data-search-index={searchIndexPath}>
   <div class="overlay"></div>
 
   <div class="search-modal">
@@ -105,12 +114,19 @@
     let feedItems = []
     let fetched = false
 
+    // 一度に描画する上限。アーカイブ 609 件が加わって対象が 632 件になり、
+    // 空欄で開いたときや「の」のような頻出文字を打ったときに全件が
+    // <li> になる。以前は最大 23 件だったので上限が要らなかっただけで、
+    // 632 件を毎キーストロークで作り直すのは無駄でしかない。
+    // 一覧は縦に並ぶだけで 20 件より下はどのみちスクロールしないと見えない
+    const MAX_RESULTS = 20
+
     async function openModal() {
       document.querySelector('.search-modal-container').style.display = 'block'
       document.querySelector('.search-prompt input').focus()
 
       if (!fetched) {
-        await fetchRSS()
+        await fetchSearchIndex()
       }
       searchAndRender()
     }
@@ -219,7 +235,7 @@
       const ul = document.querySelector('.search-result ul')
       ul.innerHTML = ''
 
-      results.forEach((item) => {
+      results.slice(0, MAX_RESULTS).forEach((item) => {
         const li = document.createElement('li')
         const a = document.createElement('a')
         const title = document.createElement('div')
@@ -228,7 +244,9 @@
         title.classList.add('search-result-title')
         title.textContent = item.title
         description.classList.add('search-result-description')
-        description.textContent = item.description
+        // アーカイブ記事は description を持たない。素で渡すと
+        // 説明文の欄に文字列 'undefined' が出るので空文字に落とす
+        description.textContent = item.description ?? ''
         a.href = item.link
 
         li.addEventListener('mouseover', handleMouseover)
@@ -240,37 +258,29 @@
       })
     }
 
-    async function fetchRSS() {
-      const url = new URL(location.href)
-      const port = url.port ? `:${url.port}` : ''
+    // 取りに行く先を RSS（/feed）から専用の検索インデックスに変えた。
+    // /feed には Notion の 23 件しか載らず、アーカイブ 609 件が
+    // 検索から引けなかったため（詳細は src/pages/search-index.json.ts）。
+    // 取得は «モーダルを初めて開いたとき» のままで、ページ表示時には走らない
+    async function fetchSearchIndex() {
+      // dataset ではなく getAttribute + ?? を使っているのは型のため。
+      // querySelector の戻りは Element | null なので、.dataset を直接
+      // 読むと astro check が «Object is possibly null» と
+      // «Property 'dataset' does not exist on type 'Element'» を出す
+      const url =
+        document
+          .querySelector('.search-modal-container')
+          ?.getAttribute('data-search-index') ?? ''
 
-      const res = await fetch(
-        `${url.protocol}//${url.hostname}${port}/feed`
-      )
+      const res = await fetch(url)
       if (res.status !== 200) {
         console.log(res.status)
-        throw new Error('Failed to fetch RSS feed')
+        throw new Error('Failed to fetch search index')
       }
 
-      const body = await res.text()
-
-      const parser = new DOMParser()
-      const xml = parser.parseFromString(body, 'text/xml')
-
-      Array.from(xml.getElementsByTagName('item')).forEach((item) => {
-        const title = item.getElementsByTagName('title')[0].textContent
-        const link = item.getElementsByTagName('link')[0].textContent
-        const description =
-          item.getElementsByTagName('description')[0]?.textContent
-        const pubDate = item.getElementsByTagName('pubDate')[0].textContent
-
-        feedItems.push({
-          title,
-          link,
-          description,
-          pubDate,
-        })
-      })
+      // XML を DOMParser で舐める必要がなくなったぶん、
+      // 起動時の処理は素の JSON.parse だけになった
+      feedItems = await res.json()
 
       fetched = true
     }

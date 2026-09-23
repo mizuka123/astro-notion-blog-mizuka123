@@ -22,6 +22,17 @@ import SiteHead from '../components/SiteHead.astro'
 import PostDate from '../components/PostDate.astro'
 import BlogPostsLink from '../components/BlogPostsLink.astro'
 import BlogTagsLink from '../components/BlogTagsLink.astro'
+// 検索ボタンとモーダル。Layout.astro には前からあったが、こちらには
+// 無かったため、アーカイブ 609 ページからは検索を開く手段が無かった。
+// 置き場所も Layout.astro に合わせてある（aside の先頭とフッター直後）。
+//
+// ボタンの SVG・モーダルの markup・インライン化されたスクリプトが
+// 各ページに載るぶん、アーカイブ記事の HTML は 1 ページあたり
+// +1,322 B（gzip +254 B）増える。変更前後の dist/archive/ を
+// 609 件ぶん突き合わせた実測値（14,495,912 → 15,301,010 B）。
+// Layout.astro を使う 34 ページが元から払っているのと同じ費用
+import SearchModal from '../components/SearchModal.astro'
+import SearchButton from '../components/SearchButton.astro'
 import styles from '../styles/blog.module.css'
 
 // src/pages/archive/*.md の frontmatter のうち、このレイアウトが読むものだけ。
@@ -170,6 +181,7 @@ const post: Pick<Post, 'Date' | 'Title'> = {
         </main>
         <aside>
           <div class={styles.aside}>
+            <SearchButton />
             <BlogPostsLink heading="おすすめ記事" posts={rankedPosts} />
             <BlogPostsLink heading="最新記事" posts={recentPosts} />
             <BlogTagsLink heading="カテゴリー" tags={tags} />
@@ -185,6 +197,7 @@ const post: Pick<Post, 'Date' | 'Title'> = {
       </div>
     </div>
 
+    <SearchModal />
     {
       ENABLE_LIGHTBOX && (
         <script src={getStaticFilePath('/scripts/fslightbox.js')} />
