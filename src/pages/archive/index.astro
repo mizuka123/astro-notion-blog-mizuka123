@@ -5,6 +5,10 @@ import {
   getRankedPosts,
   getAllTags,
 } from '../../lib/notion/client'
+import {
+  archiveCategories,
+  getCategoryDisplayName,
+} from '../../lib/archive-taxonomy'
 import { getNavLink, stripBasePath } from '../../lib/blog-helpers'
 import Layout from '../../layouts/Layout.astro'
 import BlogPostsLink from '../../components/BlogPostsLink.astro'
@@ -45,6 +49,22 @@ const sortedPosts = nonDraftPosts.sort((a, b) => {
   const bDate = new Date(b.frontmatter.date)
   return bDate.getTime() - aDate.getTime()
 })
+
+// このページの導線は «609 本の平坦なリンク» だけで、読者が目当ての分野に
+// たどり着く手段が無かった。カテゴリー 27 件を先頭に置いて入口を作る。
+// タグは 271 種あり、ここに並べると本来の記事一覧が画面外に押し出される
+// ので置かない（うち 182 種は記事 2 本以下）。
+//
+// 並びは記事数の多い順。スラッグ順（accessory が先頭）だと 1 本しか
+// 無い pc-web と 95 本の camera-lens が同じ重みで並ぶ。
+// 同数のときはスラッグ順にして、ビルドごとに入れ替わらないようにする
+const categoryLinks = [...archiveCategories.entries()]
+  .map(([slug, posts]) => ({
+    slug,
+    name: getCategoryDisplayName(slug),
+    count: posts.length,
+  }))
+  .sort((a, b) => b.count - a.count || a.slug.localeCompare(b.slug))
 ---
 
 <Layout
@@ -52,6 +72,21 @@ const sortedPosts = nonDraftPosts.sort((a, b) => {
   path="/archive"
 >
   <div slot="main" class={styles.main}>
+    <h2>カテゴリーから探す</h2>
+    <ul class="categories">
+      {
+        categoryLinks.map((category) => (
+          <li>
+            <a href={getNavLink(`/category/${category.slug}`)}>
+              {category.name}
+            </a>
+            <span class="count">{category.count}</span>
+          </li>
+        ))
+      }
+    </ul>
+
+    <h2>すべての記事</h2>
     {
       sortedPosts.map((post) => (
         <li>
@@ -69,3 +104,24 @@ const sortedPosts = nonDraftPosts.sort((a, b) => {
     <BlogTagsLink heading="カテゴリー" tags={tags} />
   </div>
 </Layout>
+
+<style>
+  /* 27 件を縦に積むと、その下の記事一覧 609 件が完全に画面外へ出る。
+     横に流して数行に収める */
+  ul.categories {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 0.9rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  ul.categories li {
+    white-space: nowrap;
+  }
+  ul.categories span.count {
+    margin-left: 0.2rem;
+    color: #777;
+    font-size: 0.8rem;
+  }
+</style>

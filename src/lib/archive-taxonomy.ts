@@ -1,0 +1,183 @@
+import type { MarkdownInstance } from 'astro'
+import { stripBasePath } from './blog-helpers'
+
+/**
+ * 旧 WordPress の /category/<slug>/ と /tag/<slug>/ に実ページを作るための、
+ * アーカイブ記事の分類情報。
+ *
+ * 旧サイトの被リンクと検索結果はこの 2 つの URL を指したままで、現在は
+ * 404 を返している。転送ではなく実ページを置く判断をしたので、
+ * 「どの記事がどの分類に属するか」を 1 か所で決める必要がある。
+ *
+ * ここが glob を持つのは、/category/[category] と /tag/[tag] の 2 ページが
+ * それぞれ 609 件を読み直すと、同じ除外条件（draft）と同じ並び順（日付の
+ * 新しい順）を 2 か所で書くことになるため。片方だけ直したときに
+ * 「カテゴリー一覧とタグ一覧で同じ記事の並びが違う」状態になる。
+ */
+
+// frontmatter のうち、このモジュールが読む項目だけを宣言する。
+// 実ファイルには layout / coverImage もあるが、分類の組み立てには要らない。
+// title / date は全 609 件が持つ（src/layouts/LayoutMd.astro の注記と同じ）。
+// categories は全 609 件にあり、tags は 435 件にしか無いので省略可能にする
+export interface ArchiveTaxonomyFrontmatter {
+  title: string
+  date: string
+  draft?: boolean
+  categories?: string[]
+  tags?: string[]
+}
+
+// 一覧に出すのに必要な最小限。記事本文や coverImage まで持ち回ると、
+// 298 ページ分の getStaticPaths の戻り値が丸ごと重くなる
+export interface ArchivePostRef {
+  title: string
+  date: string
+  // BASE_PATH を «含まない» 生パス（例: '/archive/6474'）。
+  // リンクを出す側が getNavLink() を通して BASE_PATH を足す。
+  // ここで足してしまうと、getNavLink を通した時点で二重に付く
+  url: string
+}
+
+/**
+ * このタクソノミーを検索エンジンに載せるかどうかの境目（記事数）。
+ *
+ * タグ 271 種の内訳は 1 本だけ = 130 種、2 本 = 52 種、3 本以上 = 89 種で、
+ * 3 本未満の 182 種は「アーカイブ記事 1 件へのリンクが 1 本あるだけの
+ * ページ」になる。その記事自身のページと中身がほぼ変わらず、
+ * 検索エンジンから見れば薄いページを 182 枚増やすことになる。
+ * それでも 200 で返すのは旧 URL の被リンクを 404 にしないためなので、
+ * 「配信はするがインデックスはさせない」に倒す。
+ *
+ * カテゴリー 27 種でこの境目を下回るのは pc-web（1 本）だけ。
+ *
+ * 値をここに置いているのは、/category/[category]・/tag/[tag] の noindex と
+ * astro.config.mjs の sitemap 除外が «同じ判断» だから。別々に持つと
+ * 「noindex なのに sitemap に載っている」という矛盾が起きる
+ */
+export const INDEX_MIN_POSTS = 3
+
+/**
+ * カテゴリーのスラッグ → 画面に出す表示名。
+ *
+ * スラッグは旧 WordPress が発行した URL の一部で、これを変えると
+ * 移行元の被リンクが切れるので変更できない。つまり日本語の表示名は
+ * データから導けず、手で維持するしかない。カテゴリーは 27 種で
+ * 打ち止め（アーカイブ記事は増えない）なので、全 27 行を書き切っている。
+ *
+ * 水樹奈々・茅原実里・田村ゆかり・伊藤かな恵・東山奈央の 5 つは
+ * スラッグ自体が日本語なので、そのまま表示名になる。行を省かず
+ * 書いているのは、この表を見れば 27 種すべてが揃っていると
+ * 確認できるようにするため。
+ *
+ * タグ 271 種には同じ表を作らない。手で維持する行が 271 行に増える割に、
+ * 182 種は記事 2 本以下の noindex ページで人目に触れない
+ */
+const CATEGORY_DISPLAY_NAMES: Record<string, string> = {
+  'camera-lens': 'カメラ・レンズ',
+  photographs: '写真',
+  gadget: 'ガジェット',
+  'voice-actor': '声優',
+  anime: 'アニメ',
+  android: 'Android',
+  'photographic-equipment': 'カメラ周辺機器',
+  水樹奈々: '水樹奈々',
+  pc: 'PC',
+  茅原実里: '茅原実里',
+  'consumer-electronics': '家電',
+  田村ゆかり: '田村ゆかり',
+  blog: 'ブログ',
+  ipad: 'iPad',
+  audio: 'オーディオ',
+  iphone: 'iPhone',
+  mobilerouter: 'モバイルルーター',
+  game: 'ゲーム',
+  'mobile-line': 'モバイル回線',
+  note: '雑記',
+  伊藤かな恵: '伊藤かな恵',
+  accessory: 'アクセサリー',
+  column: 'コラム',
+  smartwatch: 'スマートウォッチ',
+  kindle: 'Kindle',
+  東山奈央: '東山奈央',
+  'pc-web': 'PC・Web',
+}
+
+/**
+ * 表に無いスラッグはそのまま表示する。
+ *
+ * 表と実データがずれたときに «ビルドを落とす» のではなく «スラッグを出す»
+ * のは、表示名の欠落だけで旧 URL のページごと出なくなると、
+ * 404 を潰すという本来の目的まで巻き添えになるため
+ */
+export const getCategoryDisplayName = (slug: string): string =>
+  CATEGORY_DISPLAY_NAMES[slug] ?? slug
+
+const archiveModules = import.meta.glob<
+  MarkdownInstance<ArchiveTaxonomyFrontmatter>
+>('../pages/archive/*.md', { eager: true })
+
+// import.meta.glob はパスをキーにしたオブジェクトを返すため Object.values で配列化する
+const allArchivePosts = Object.values(archiveModules)
+
+// Astro.glob と違い import.meta.glob は 0 件でも例外を投げず空オブジェクトを
+// 返す。パスを書き間違えると「カテゴリーページが 1 枚も出ないビルドが
+// 成功する」ことになるので、src/pages/archive/index.astro と同じ安全網を張る
+if (allArchivePosts.length === 0) {
+  throw new Error(
+    "src/lib/archive-taxonomy.ts の '../pages/archive/*.md' がひとつもマッチしませんでした。アーカイブ記事の配置を確認してください。"
+  )
+}
+
+interface ClassifiedPost extends ArchivePostRef {
+  categories: string[]
+  tags: string[]
+}
+
+// 並び替えは 1 回で済ませる。分類ごとに sort し直しても結果は同じだが、
+// 「カテゴリー側だけ並び順を変える」改変が入り込む余地を残さない。
+// date は全件 'YYYY-MM-DD' なので辞書順と日付順が一致するが、
+// Notion 側の日付が ISO 8601 で来る例に合わせて Date で比較する。
+// 同日の記事は url で決めて、ビルドのたびに並びが入れ替わらないようにする
+// （並びが揺れると差分比較で «変わっていないのに差分が出る»）
+const classifiedPosts: ClassifiedPost[] = allArchivePosts
+  .filter((post) => !post.frontmatter.draft)
+  .map((post) => ({
+    title: post.frontmatter.title,
+    date: post.frontmatter.date,
+    url: stripBasePath(post.url ?? ''),
+    categories: post.frontmatter.categories ?? [],
+    tags: post.frontmatter.tags ?? [],
+  }))
+  .sort((a, b) => {
+    const diff = new Date(b.date).getTime() - new Date(a.date).getTime()
+    return diff !== 0 ? diff : a.url.localeCompare(b.url)
+  })
+
+const groupBy = (
+  key: 'categories' | 'tags'
+): ReadonlyMap<string, ArchivePostRef[]> => {
+  const groups = new Map<string, ArchivePostRef[]>()
+  for (const post of classifiedPosts) {
+    for (const name of post[key]) {
+      const posts = groups.get(name)
+      if (posts) {
+        posts.push(post)
+      } else {
+        groups.set(name, [post])
+      }
+    }
+  }
+  return groups
+}
+
+/**
+ * カテゴリー名 → その記事一覧（日付の新しい順）。実測 27 種・のべ 746 件。
+ *
+ * モジュール読み込み時に 1 回だけ組み立てる。getStaticPaths と各ページの
+ * 本体から合わせて 300 回近く参照されるため、呼ぶたびに 609 件を
+ * 走査し直すのは無駄
+ */
+export const archiveCategories = groupBy('categories')
+
+/** タグ名 → その記事一覧（日付の新しい順）。実測 271 種 */
+export const archiveTags = groupBy('tags')

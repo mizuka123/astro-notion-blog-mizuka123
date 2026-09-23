@@ -1,0 +1,93 @@
+---
+import type { ArchivePostRef } from '../../lib/archive-taxonomy'
+import { archiveTags, INDEX_MIN_POSTS } from '../../lib/archive-taxonomy'
+import { getPosts, getRankedPosts, getAllTags } from '../../lib/notion/client'
+import { getNavLink, getDateStr } from '../../lib/blog-helpers'
+import Layout from '../../layouts/Layout.astro'
+import BlogPostsLink from '../../components/BlogPostsLink.astro'
+import BlogTagsLink from '../../components/BlogTagsLink.astro'
+import styles from '../../styles/blog.module.css'
+
+// 旧 WordPress の /tag/<slug>/ に «実ページ» を置く。理由は
+// src/pages/category/[category].astro と同じ（#92 で 404 になった旧 URL を
+// 200 に戻す）。
+//
+// Notion 記事側のタグは /posts/tag/<tag>/ が受け持っていて、こちらとは
+// 別系統。同じ「タグ」でも母集団（アーカイブ 609 記事 / Notion 記事）も
+// URL も違うので、1 つのページにまとめていない。
+//
+// タグには表示名の対応表を作らずスラッグをそのまま出す。271 種のうち
+// 182 種は記事 2 本以下の noindex ページで、手で 271 行を維持する労力に
+// 見合わない（src/lib/archive-taxonomy.ts の対応表のコメント参照）
+export async function getStaticPaths() {
+  // props で posts を渡す理由はカテゴリー側と同じ。271 種のうち 86 種が
+  // 日本語スラッグで、params 経由だと URL エンコードの往復が挟まる
+  return [...archiveTags.entries()].map(([tag, posts]) => ({
+    params: { tag },
+    props: { posts },
+  }))
+}
+
+export interface Props {
+  posts: ArchivePostRef[]
+}
+
+const { tag } = Astro.params
+const { posts } = Astro.props
+
+// ページごとに書き分ける。271 ページが同じ説明文だと検索エンジンからは
+// 区別が付かない（#99 と同じ方針）
+const title = `${tag} の記事一覧`
+const description = `「${tag}」タグを付けたアーカイブ記事 ${posts.length} 件の一覧です。`
+
+const [rankedPosts, tags, recentPosts] = await Promise.all([
+  getRankedPosts(),
+  getAllTags(),
+  getPosts(5),
+])
+---
+
+<Layout
+  title={title}
+  description={description}
+  path={`/tag/${tag}`}
+  noindex={posts.length < INDEX_MIN_POSTS}
+>
+  <div slot="main" class={styles.main}>
+    <h2>{title}</h2>
+    <p>{description}</p>
+    <ul class="entries">
+      {
+        posts.map((post) => (
+          <li>
+            <time datetime={post.date}>{getDateStr(post.date)}</time>
+            <a href={getNavLink(post.url)}>{post.title}</a>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+
+  <div slot="aside" class={styles.aside}>
+    <BlogPostsLink heading="おすすめ記事" posts={rankedPosts} />
+    <BlogPostsLink heading="最新記事" posts={recentPosts} />
+    <BlogTagsLink heading="カテゴリー" tags={tags} />
+  </div>
+</Layout>
+
+<style>
+  /* src/pages/category/[category].astro と同じ見た目にそろえる。
+     scoped style なので共有できず、同じ内容を両方に置いている */
+  ul.entries {
+    padding-left: 1.2rem;
+  }
+  ul.entries li {
+    margin-bottom: 0.4rem;
+  }
+  ul.entries time {
+    margin-right: 0.6rem;
+    color: #777;
+    font-size: 0.85rem;
+    white-space: nowrap;
+  }
+</style>

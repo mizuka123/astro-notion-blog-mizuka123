@@ -1,0 +1,101 @@
+---
+import type { ArchivePostRef } from '../../lib/archive-taxonomy'
+import {
+  archiveCategories,
+  getCategoryDisplayName,
+  INDEX_MIN_POSTS,
+} from '../../lib/archive-taxonomy'
+import { getPosts, getRankedPosts, getAllTags } from '../../lib/notion/client'
+import { getNavLink, getDateStr } from '../../lib/blog-helpers'
+import Layout from '../../layouts/Layout.astro'
+import BlogPostsLink from '../../components/BlogPostsLink.astro'
+import BlogTagsLink from '../../components/BlogTagsLink.astro'
+import styles from '../../styles/blog.module.css'
+
+// 旧 WordPress の /category/<slug>/ に «実ページ» を置く。
+// #92 で未マッチのパスを 404 にしたことで、移行前の被リンクと検索結果が
+// 指している 27 本の URL がすべて 404 になった。転送ではなく 200 で
+// 着地させるのは、同時にアーカイブ 609 記事への入口が要るため。
+// 現状 /archive/ の平坦なリンク 609 本しか導線が無い。
+//
+// astro.config.mjs は build.format を指定していない＝既定の 'directory' で、
+// 出力は /category/<slug>/index.html になる。旧 WordPress の
+// 末尾スラッシュ付き URL とそのまま一致する
+export async function getStaticPaths() {
+  // posts を props で渡し、ページ本体で Astro.params から引き直さない。
+  // 日本語スラッグ（水樹奈々・茅原実里・田村ゆかり・伊藤かな恵・東山奈央）が
+  // params を経由すると URL エンコードの往復が挟まり、Map のキーと
+  // 一致する保証が無くなる。ここで組にしておけば往復自体が起きない
+  return [...archiveCategories.entries()].map(([category, posts]) => ({
+    params: { category },
+    props: { posts },
+  }))
+}
+
+export interface Props {
+  posts: ArchivePostRef[]
+}
+
+const { category } = Astro.params
+const { posts } = Astro.props
+
+const displayName = getCategoryDisplayName(category ?? '')
+
+// <title> と description はページごとに書き分ける。サイト共通の説明文を
+// 27 ページで使い回すと、検索エンジンからはどれも同じページに見える
+// （#99 で /posts/ 配下に同じ問題があった）。件数を入れているのは、
+// 27 ページのうち 2 ページが偶然同じ語になっても区別が付くようにするため
+const title = `${displayName} の記事一覧`
+const description = `「${displayName}」に分類したアーカイブ記事 ${posts.length} 件の一覧です。`
+
+const [rankedPosts, tags, recentPosts] = await Promise.all([
+  getRankedPosts(),
+  getAllTags(),
+  getPosts(5),
+])
+---
+
+<Layout
+  title={title}
+  description={description}
+  path={`/category/${category}`}
+  noindex={posts.length < INDEX_MIN_POSTS}
+>
+  <div slot="main" class={styles.main}>
+    <h2>{title}</h2>
+    <p>{description}</p>
+    <ul class="entries">
+      {
+        posts.map((post) => (
+          <li>
+            <time datetime={post.date}>{getDateStr(post.date)}</time>
+            <a href={getNavLink(post.url)}>{post.title}</a>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+
+  <div slot="aside" class={styles.aside}>
+    <BlogPostsLink heading="おすすめ記事" posts={rankedPosts} />
+    <BlogPostsLink heading="最新記事" posts={recentPosts} />
+    <BlogTagsLink heading="カテゴリー" tags={tags} />
+  </div>
+</Layout>
+
+<style>
+  ul.entries {
+    padding-left: 1.2rem;
+  }
+  ul.entries li {
+    margin-bottom: 0.4rem;
+  }
+  ul.entries time {
+    margin-right: 0.6rem;
+    color: #777;
+    font-size: 0.85rem;
+    /* 日付の桁で折り返さないようにする。95 件並ぶページで
+       「2014-10-」と「04」が別行になると一覧として読めない */
+    white-space: nowrap;
+  }
+</style>
