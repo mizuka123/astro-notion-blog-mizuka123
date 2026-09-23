@@ -76,8 +76,14 @@ const lastPostNumber = firstPostNumber + posts.length - 1
 // 「N/M ページ目」を足した形。変更前は 'Posts in ガジェット 2/3' だった。
 // 数字を「2/3」のままにしているのは /posts/page/<n> と同じ理由で、
 // 画面上部の見出しと Pagination が元からこの表記を使っているため
-// «タグの» を入れる理由は /posts/tag/[tag].astro のコメントを参照
-const title = `${tag} タグの記事一覧 ${page}/${numberOfPages} ページ目`
+// «「」で括ったタグの» にする理由は /posts/tag/[tag].astro のコメントを参照。
+//
+// なお posts/page/[page].astro では «検索結果で切られる 30 文字» を
+// 目安に «2/3 ページ目» の形を選んだが、こちらはタグ名の長さ次第で
+// その予算を超える（「ポケモンスリープ」タグの記事一覧 2/2 ページ目 -
+// みずかるちゃー で 37 文字）。タグ名は削れないので、
+// 切られることを承知のうえで 1 ページ目との一貫性を優先している
+const title = `「${tag}」タグの記事一覧 ${page}/${numberOfPages} ページ目`
 
 // description を渡さないと Notion のデータベース説明文にフォールバックし、
 // サイト共通の 1 文を使い回すページがまた増える。件数と «何件目から
