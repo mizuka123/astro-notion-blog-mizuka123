@@ -33,7 +33,6 @@ import BlogTagsLink from '../components/BlogTagsLink.astro'
 // Layout.astro を使う 34 ページが元から払っているのと同じ費用
 import SearchModal from '../components/SearchModal.astro'
 import SearchButton from '../components/SearchButton.astro'
-import styles from '../styles/blog.module.css'
 
 // src/pages/archive/*.md の frontmatter のうち、このレイアウトが読むものだけ。
 // 全 609 件が title と date を持つ。coverImage は「行がある」のが 538 件で、
@@ -180,7 +179,7 @@ const post: Pick<Post, 'Date' | 'Title'> = {
           </div>
         </main>
         <aside>
-          <div class={styles.aside}>
+          <div>
             <SearchButton />
             <BlogPostsLink heading="おすすめ記事" posts={rankedPosts} />
             <BlogPostsLink heading="最新記事" posts={recentPosts} />
