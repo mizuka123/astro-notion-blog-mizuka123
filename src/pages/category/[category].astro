@@ -1,0 +1,132 @@
+---
+import type { ArchivePostRef } from '../../lib/archive-taxonomy'
+import {
+  archiveCategories,
+  getCategoryDisplayName,
+} from '../../lib/archive-taxonomy'
+import { getPosts, getRankedPosts, getAllTags } from '../../lib/notion/client'
+import { getNavLink } from '../../lib/blog-helpers'
+import Layout from '../../layouts/Layout.astro'
+import BlogPostsLink from '../../components/BlogPostsLink.astro'
+import BlogTagsLink from '../../components/BlogTagsLink.astro'
+import styles from '../../styles/blog.module.css'
+import taxonomyStyles from '../../styles/archive-taxonomy.module.css'
+
+// 旧 WordPress の /category/<slug>/ に «実ページ» を置く。
+// #92 で未マッチのパスを 404 にしたことで、移行前の被リンクと検索結果が
+// 指している 27 本の URL がすべて 404 になった。転送ではなく 200 で
+// 着地させるのは、同時にアーカイブ 609 記事への入口が要るため。
+// 現状 /archive/ の平坦なリンク 609 本しか導線が無い。
+//
+// astro.config.mjs は build.format を指定していない＝既定の 'directory' で、
+// 出力は /category/<slug>/index.html になる。旧 WordPress の
+// 末尾スラッシュ付き URL とそのまま一致する
+export async function getStaticPaths() {
+  // posts を props で渡し、ページ本体で Astro.params から引き直さない。
+  // 日本語スラッグ（水樹奈々・茅原実里・田村ゆかり・伊藤かな恵・東山奈央）が
+  // params を経由すると URL エンコードの往復が挟まり、Map のキーと
+  // 一致する保証が無くなる。ここで組にしておけば往復自体が起きない
+  return [...archiveCategories.entries()].map(([category, taxonomy]) => ({
+    params: { category },
+    props: {
+      posts: taxonomy.posts,
+      indexable: taxonomy.indexable,
+      thin: taxonomy.thin,
+    },
+  }))
+}
+
+export interface Props {
+  posts: ArchivePostRef[]
+  // 「検索エンジンに載せるか」は src/lib/archive-taxonomy.ts が決めた結果を
+  // 受け取るだけにする。判断の条件は «記事数» と «記事集合が他のタクソノミーと
+  // 完全一致しないこと» の 2 つあり、ここに書き写すとカテゴリー側とタグ側で
+  // 条件がずれる
+  indexable: boolean
+  thin: boolean
+}
+
+const { category } = Astro.params
+const { posts, indexable, thin } = Astro.props
+
+/*
+ * noindex と noAds を渡す条件は «別々» で、同じではない。
+ *
+ * Google Publisher Policies の Inventory value には
+ * "Google-served ads on screens without publisher-content" という項目があり、
+ * publisher-content の無い画面に加えて "with low-value content" の画面と
+ * "used for alerts/navigation" の画面への広告配信も禁じている。
+ * 記事リンクが 1〜2 本あるだけのページ（thin）は、まさに low-value content
+ * かつ navigation にあたる。実測で dist/category/pc-web/index.html には
+ * adsbygoogle が 1 件入っていた。
+ * 違反はそのページの配信停止にとどまらず、繰り返せばアカウント単位の措置。
+ *
+ * noAds を indexable ではなく thin で判断しているのはここが理由。
+ * 記事集合が他と完全に同じで index から外した 4 枚（記事 4 / 5 / 3 / 3 件）は
+ * 薄くないので広告を止めない。indexable で判断すると «一字一句同じ相方は
+ * 広告を出しているのに、こちらは出さない» という説明の付かない状態になる。
+ *
+ * SiteHead.astro 側で noindex から noAds を導かないのは、2 つが別の判断で
+ * あることを壊さないため（404 ページは URL が実在しないから noindex で、
+ * 行き止まりだから noAds）。ここは «同じ判断から両方が出ている» ので、
+ * ページ側で 2 つとも渡す形にしてある。
+ *
+ * 逆に薄くないページでは広告を出したままにする。
+ * 判断が割れるのは、同じ «記事へのリンクが並ぶだけのページ» である
+ * /archive/（リンク 609 本）と /posts/page/N が元から広告を出しているから。
+ * そちらに手を入れるかどうかは本 PR の範囲外で、ここだけ先に消すと
+ * 「同種のページで扱いが違う」状態を新しく作ることになる。
+ * 薄いページを止めるのが目的なので、薄い側だけを止める
+ */
+
+const displayName = getCategoryDisplayName(category ?? '')
+
+// 日付は frontmatter の post.date をそのまま出す。getDateStr() を通していたが、
+// これは new Date() → getFullYear/getMonth/getDate の «ローカル時刻» を経由する。
+// アーカイブ 609 件の date は実測で «すべて 'YYYY-MM-DD'»（時刻もタイムゾーンも
+// 持たない）＝ UTC 0 時として解釈されるため、UTC より西のタイムゾーンで
+// ビルドすると 1 日戻り、datetime 属性（post.date）と表示テキストが食い違う。
+// 変換して元に戻すだけの往復なので、素通しにする
+
+// <title> と description はページごとに書き分ける。サイト共通の説明文を
+// 27 ページで使い回すと、検索エンジンからはどれも同じページに見える
+// （#99 で /posts/ 配下に同じ問題があった）。件数を入れているのは、
+// 27 ページのうち 2 ページが偶然同じ語になっても区別が付くようにするため
+const title = `${displayName} の記事一覧`
+const description = `「${displayName}」に分類したアーカイブ記事 ${posts.length} 件の一覧です。`
+
+const [rankedPosts, tags, recentPosts] = await Promise.all([
+  getRankedPosts(),
+  getAllTags(),
+  getPosts(5),
+])
+---
+
+<Layout
+  title={title}
+  description={description}
+  path={`/category/${category}`}
+  noindex={!indexable}
+  noAds={thin}
+>
+  <div slot="main" class={styles.main}>
+    <h2>{title}</h2>
+    <p>{description}</p>
+    <ul class={taxonomyStyles.entries}>
+      {
+        posts.map((post) => (
+          <li>
+            <time datetime={post.date}>{post.date}</time>
+            <a href={getNavLink(post.url)}>{post.title}</a>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+
+  <div slot="aside" class={styles.aside}>
+    <BlogPostsLink heading="おすすめ記事" posts={rankedPosts} />
+    <BlogPostsLink heading="最新記事" posts={recentPosts} />
+    <BlogTagsLink heading="カテゴリー" tags={tags} />
+  </div>
+</Layout>
