@@ -145,10 +145,19 @@ const searchIndexPath = getStaticFilePath('/search-index.json')
       // Enter は初期 markup の <a href="#"> を click して先頭へジャンプ＋
       // 履歴が 1 つ増える、という状態だった。
       // 一度検索文字を入れた後は結果リストが空になるため、Enter は
-      // null 参照で TypeError になる。
+      // null 参照で TypeError になる。なお «開いていてヒット 0 件» のときの
+      // 同種の TypeError はこのガードでは塞がらない（別件）。
       //
       // 元からあったが、アーカイブ 609 記事にも検索を付けたことで
       // «矢印キーでのスクロールが最も使われる長文ページ» に広がった
+      //
+      // 判定は openModal()/closeModal() が書いたインラインスタイルを直接読む。
+      // クロージャに isOpen のような変数を別に持たないのは、開閉状態の出所を
+      // DOM ひとつに保つため（変数と DOM の二重管理はずれたときに気づけない）。
+      // その代わり «隠し方» にこの条件が結合している。class の付け外しや
+      // [hidden] / <dialog> に変えるときは、必ずこの条件も一緒に直すこと。
+      // 直し忘れると判定が常に真になり «モーダルを開いてもキー操作が効かない»
+      // という逆向きの壊れ方を、エラーも出さずにする
       const container = document.querySelector('.search-modal-container')
       if (!container || container.style.display !== 'block') {
         return
