@@ -58,3 +58,21 @@ export const archiveImageFilePath = (src: unknown): string | null => {
   const name = archiveImageName(src)
   return name === null ? null : path.join(ARCHIVE_IMAGE_DIR, name)
 }
+
+/**
+ * frontmatter の coverImage から、public/archive/images/ の下のファイル名を
+ * 返す。空や、ディレクトリを抜け出す値なら null。
+ *
+ * coverImage は URL ではなくファイル名だけが書かれている（609 記事の
+ * 実データで / や \ を含む値は 0 件）ので、デコードはせず、
+ * archiveImageName() と同じ «ディレクトリを抜けない» 確認だけをする
+ */
+export const archiveCoverImageName = (
+  coverImage: string | undefined
+): string | null => {
+  const name = coverImage?.trim()
+  if (!name || name.includes('/') || name.includes('\\') || name === '..') {
+    return null
+  }
+  return name
+}
