@@ -5,8 +5,13 @@ import { getStaticFilePath } from '../lib/blog-helpers'
 // 以前は script の中で location から `${protocol}//${hostname}${port}/feed`
 // を組み直していたが、これだと BASE_PATH がサブディレクトリに設定された
 // 環境で 404 になる（現在の BASE_PATH は '' なので表には出ていなかった）。
-// define:vars を使うと script がインライン化されてバンドルから外れ、
-// 5KB 弱のスクリプトが全 642 ページに直書きされてしまうので、data 属性にした
+// define:vars を使わないのは、そちらだとスクリプトがビルドの処理から
+// 外れてしまうため。
+//
+// ただし «バンドルに入るので各ページには載らない» わけではない。実測では
+// このスクリプトは _astro/ の js に出ておらず、minify された状態で
+// 全 942 ページの HTML に直接埋め込まれている（1 ページ 2,831 バイト）。
+// ここを 1 行増やすと 942 倍の費用になることに注意
 const searchIndexPath = getStaticFilePath('/search-index.json')
 ---
 
@@ -134,6 +139,13 @@ const searchIndexPath = getStaticFilePath('/search-index.json')
     // ﾚﾋﾞｭｰ（半角カナ）は 0 件 → 152 件になる。索引側に全角英数を含む
     // タイトルは 5 件、半角カナは 4 件しかないので、これは主に «入力側»
     // の揺れを吸収するためのもの
+    //
+    // ?? '' は外せない。索引 632 件のうち «アーカイブ記事 609 件は
+    // description のキー自体を持たない»（空文字ですらない）。
+    // 変更前は item?.description?.includes() と呼び出し側に書いてあったので
+    // 見えていたが、今はこの中に隠れている。外すと 1 クエリが空振りする
+    // だけでは済まず、索引取得時の map() の中で TypeError になって
+    // モーダルごと動かなくなる
     const foldForSearch = (text) => (text ?? '').normalize('NFKC').toLowerCase()
 
     async function openModal() {
