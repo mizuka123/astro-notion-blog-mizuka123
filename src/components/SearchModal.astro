@@ -121,6 +121,21 @@ const searchIndexPath = getStaticFilePath('/search-index.json')
     // 一覧は縦に並ぶだけで 20 件より下はどのみちスクロールしないと見えない
     const MAX_RESULTS = 20
 
+    // 検索の照合に使う «畳んだ» 文字列を作る。
+    //
+    // 素の includes() は大文字小文字を区別するため、632 件のうち
+    // 442 件のタイトルに A-Z が含まれるこの索引では取りこぼしが大きい。
+    // 実測で iphone / sony / ipad / galaxy / kindle / android / pc は
+    // すべて 0 件だった（iPhone なら 14 件、SONY なら 17 件出る）。
+    // 読者は普通に小文字で打つので、そのままでは «検索しても出てこない»。
+    //
+    // NFKC まで掛けているのは、日本語 IME で全角のまま打つことが
+    // 日常的に起きるため。実測で ｉｐｈｏｎｅ（全角）は 0 件 → 14 件、
+    // ﾚﾋﾞｭｰ（半角カナ）は 0 件 → 152 件になる。索引側に全角英数を含む
+    // タイトルは 5 件、半角カナは 4 件しかないので、これは主に «入力側»
+    // の揺れを吸収するためのもの
+    const foldForSearch = (text) => (text ?? '').normalize('NFKC').toLowerCase()
+
     async function openModal() {
       document.querySelector('.search-modal-container').style.display = 'block'
       document.querySelector('.search-prompt input').focus()
@@ -249,13 +264,12 @@ const searchIndexPath = getStaticFilePath('/search-index.json')
     }
 
     function search(query) {
-      const results = []
-      feedItems.forEach((item) => {
-        if (item.title.includes(query) || item?.description?.includes(query)) {
-          results.push(item)
-        }
-      })
-      return results
+      const needle = foldForSearch(query)
+      return feedItems.filter(
+        (item) =>
+          item.searchTitle.includes(needle) ||
+          item.searchDescription.includes(needle)
+      )
     }
 
     function renderResults(results) {
@@ -306,8 +320,18 @@ const searchIndexPath = getStaticFilePath('/search-index.json')
       }
 
       // XML を DOMParser で舐める必要がなくなったぶん、
-      // 起動時の処理は素の JSON.parse だけになった
-      feedItems = await res.json()
+      // 起動時の処理は素の JSON.parse だけになった。
+      //
+      // 畳んだ文字列は «取得直後に 1 回だけ» 作って持たせる。打鍵のたびに
+      // 632 件を normalize() し直すのは無駄で、検索は 1 文字ごとに走る。
+      // title と description を繋げず別々に持つのは、繋げると
+      // «タイトルの末尾と説明文の先頭にまたがる語» が当たってしまい、
+      // 変更前に無かったヒットが増えるため
+      feedItems = (await res.json()).map((item) => ({
+        ...item,
+        searchTitle: foldForSearch(item.title),
+        searchDescription: foldForSearch(item.description),
+      }))
 
       fetched = true
     }
