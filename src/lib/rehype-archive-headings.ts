@@ -39,6 +39,21 @@ import type { Element, Root } from 'hast'
 // 置き換え先。h1 は記事タイトルが使うので本文では使えない
 const TARGET = 'h2'
 
+/*
+ * 付けておく class。LayoutMd.astro の <style is:global> がこの class で
+ * 見た目を当てる。
+ *
+ * «.content h2» のようにタグ名で当てると、アーカイブ記事以外にも効く。
+ * src/lib/archive-taxonomy.ts が import.meta.glob('../pages/archive/*.md')
+ * でアーカイブの md をモジュールグラフに引き込むため、md の layout である
+ * LayoutMd.astro の global CSS が /category/ 27 枚・/tag/ 271 枚・
+ * /tag/ 1 枚・/archive/ 1 枚にも «配信される»（実測で .content h2 を含む
+ * HTML は 909 枚）。実際に /archive/ の «カテゴリーから探す» と
+ * «すべての記事» が 1.2rem/400 から 1rem/700 に変わってしまっていた。
+ * class にすれば、CSS が配信されてもアーカイブ本文以外には当たらない
+ */
+const CLASS_NAME = 'archive-body-heading'
+
 const HEADINGS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6'])
 
 export default function rehypeArchiveHeadings() {
@@ -49,6 +64,11 @@ export default function rehypeArchiveHeadings() {
 
         if (HEADINGS.has(child.tagName)) {
           child.tagName = TARGET
+          const properties = (child.properties ??= {})
+          const existing = properties.className
+          properties.className = Array.isArray(existing)
+            ? [...existing, CLASS_NAME]
+            : [CLASS_NAME]
         }
 
         // 見出しの中に見出しは入らないが、引用やリストの中の見出しも

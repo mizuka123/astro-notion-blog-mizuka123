@@ -430,10 +430,18 @@ const post: Pick<Post, 'Date' | 'Title'> = {
    * 当たって «太字が外れて上下の余白が消える»。既定値を書き写して
    * 見た目を据え置く。
    *
-   * .content 配下に限っているのは、同じ h2 を使うサイドバー
-   * （BlogPostsLink / BlogTagsLink の見出し）に当てないため
+   * タグ名（.content h2）ではなく class で当てているのは、この
+   * <style is:global> が «アーカイブ記事以外にも配信される» ため。
+   * src/lib/archive-taxonomy.ts の import.meta.glob が
+   * アーカイブの md をモジュールグラフに引き込むので、LayoutMd.astro の
+   * global CSS が /category/ 27 枚・/tag/ 271 枚・/tag/ 1 枚・
+   * /archive/ 1 枚にも載る（実測で 909 枚）。
+   * .content h2 と書いていたときは、実際に /archive/ の
+   * «カテゴリーから探す» と «すべての記事» が 1.2rem/400 から
+   * 1rem/700 に変わってしまっていた。
+   * class なら、CSS が配信されてもアーカイブ本文以外には当たらない
    */
-  .content h2 {
+  .archive-body-heading {
     margin: 1.33em 0;
     font-size: 1rem;
     font-weight: bold;
