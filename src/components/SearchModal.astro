@@ -136,6 +136,24 @@ const searchIndexPath = getStaticFilePath('/search-index.json')
     }
 
     function handleKeydown(event) {
+      // モーダルが閉じているときは何もしない。
+      //
+      // このハンドラは document に張ってあるため、ガードが無いと
+      // ページを普通に読んでいるだけの読者のキー入力まで横取りする。
+      // 本番のブラウザで実測したところ、モーダルが display:none の状態でも
+      // ↑↓ が preventDefault() され «ページが矢印キーでスクロールしない»、
+      // Enter は初期 markup の <a href="#"> を click して先頭へジャンプ＋
+      // 履歴が 1 つ増える、という状態だった。
+      // 一度検索文字を入れた後は結果リストが空になるため、Enter は
+      // null 参照で TypeError になる。
+      //
+      // 元からあったが、アーカイブ 609 記事にも検索を付けたことで
+      // «矢印キーでのスクロールが最も使われる長文ページ» に広がった
+      const container = document.querySelector('.search-modal-container')
+      if (!container || container.style.display !== 'block') {
+        return
+      }
+
       if (event.keyCode === 13) {
         // Enter
         select()
