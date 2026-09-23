@@ -1,11 +1,12 @@
 ---
+import { NUMBER_OF_POSTS_PER_PAGE } from '../../../server-constants.ts'
 import {
   getPosts,
+  getAllPosts,
   getPostsByPage,
   getRankedPosts,
   getAllTags,
   getNumberOfPages,
-  getPostsByPage,
 } from '../../../lib/notion/client.ts'
 import Layout from '../../../layouts/Layout.astro'
 import NoContents from '../../../components/NoContents.astro'
@@ -32,16 +33,51 @@ export async function getStaticPaths() {
 
 const { page } = Astro.params
 
-const [posts, rankedPosts, tags, numberOfPages, recentPosts] = await Promise.all([
-  getPostsByPage(parseInt(page, 10)),
-  getRankedPosts(),
-  getAllTags(),
-  getNumberOfPages(),
-  getPosts(5),
-])
+// allPosts は «全何件か» を description に入れるためだけに取る。
+// client.ts の取得関数はどれも getAllPosts() のメモリキャッシュを
+// 絞り込んでいるだけなので、ここで 1 つ増やしても Notion への
+// リクエストは増えない
+const [posts, allPosts, rankedPosts, tags, numberOfPages, recentPosts] =
+  await Promise.all([
+    getPostsByPage(parseInt(page, 10)),
+    getAllPosts(),
+    getRankedPosts(),
+    getAllTags(),
+    getNumberOfPages(),
+    getPosts(5),
+  ])
+
+// 何件目から何件目を載せているか。getPostsByPage() と同じ
+// NUMBER_OF_POSTS_PER_PAGE 区切りなので、開始位置はページ番号から出せる。
+// 終わりは posts.length から出す（最終ページは 10 件に満たない。
+// 実測で記事は 23 件、3/3 ページ目は 21〜23 件目の 3 件）
+const firstPostNumber = (parseInt(page, 10) - 1) * NUMBER_OF_POSTS_PER_PAGE + 1
+const lastPostNumber = firstPostNumber + posts.length - 1
+
+// <title> を日本語にする。変更前は 'Posts 2/3' で、サイト全体が
+// lang="ja" のページの中でここと /posts/tag/ 系だけが英語だった。
+// «◯◯ の記事一覧» の形は #112 の /category/<slug>/ と /tag/ に合わせたもの。
+//
+// ページ番号を「2/3 ページ目」と書いているのは、
+// ・画面上部の見出しと Pagination が元から「2/3」と出している。
+//   同じ表記を使えば <title> と画面の表示が食い違わない
+// ・「2 ページ目」だけにすると全体が何ページあるか分からなくなる
+// ・「全 3 ページ中 2 ページ目」は日本語として自然だが、SiteHead が付ける
+//   サイト名「 - みずかるちゃー」（実測 10 文字）まで入れると
+//   「記事一覧 全 3 ページ中 2 ページ目 - みずかるちゃー」で 30 文字ちょうど。
+//   検索結果のタイトルはおおよそ 30 文字で切られるため、末尾のサイト名か
+//   ページ番号のどちらかが落ちる。「2/3」なら 23 文字で収まる
+// の 3 点から。日本語にするのは «Posts» の部分であって、数字の形ではない
+const title = `記事一覧 ${page}/${numberOfPages} ページ目`
+
+// サイト共通の説明文（Notion のデータベース説明文）のままだと、
+// 実測で dist 全 942 ページのうち 10 ページが同じ 1 文になり、
+// /posts/page/2 と /posts/page/3 も互いに区別が付かなかった。
+// 件数と «何件目から何件目か» を入れて 1 ページずつ違う文にする
+const description = `ブログ記事一覧の ${page}/${numberOfPages} ページ目です。全 ${allPosts.length} 件のうち、新しい順に ${firstPostNumber}〜${lastPostNumber} 件目を並べています。`
 ---
 
-<Layout title={`Posts ${page}/${numberOfPages}`} path={`/posts/page/${page}`}>
+<Layout title={title} description={description} path={`/posts/page/${page}`}>
   <div slot="main" class={styles.main}>
     <header>
       <div class="page-container">{page}/{numberOfPages}</div>

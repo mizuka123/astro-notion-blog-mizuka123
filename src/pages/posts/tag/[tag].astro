@@ -29,18 +29,65 @@ export async function getStaticPaths() {
 
 const { tag } = Astro.params
 
-const [posts, rankedPosts, tags, numberOfPages, recentPosts] = await Promise.all([
-  getPostsByTag(tag, NUMBER_OF_POSTS_PER_PAGE),
-  getRankedPosts(),
-  getAllTags(),
-  getNumberOfPagesByTag(tag),
-  getPosts(5),
-])
+// 1 ページ目に出すのは NUMBER_OF_POSTS_PER_PAGE 件までなので、
+// posts.length は «そのタグの記事数» ではない（実測では 5 タグとも
+// 9 件以下なのでたまたま一致するが、10 件を超えた瞬間に 10 で頭打ちになり、
+// description が «記事 10 件» と嘘をつき始める）。件数は別に数える。
+// getPostsByTag() は getAllPosts() のメモリキャッシュを絞り込んで
+// slice するだけなので、2 回呼んでも Notion へのリクエストは増えない
+const [posts, allTaggedPosts, rankedPosts, tags, numberOfPages, recentPosts] =
+  await Promise.all([
+    getPostsByTag(tag, NUMBER_OF_POSTS_PER_PAGE),
+    getPostsByTag(tag, Number.MAX_SAFE_INTEGER),
+    getRankedPosts(),
+    getAllTags(),
+    getNumberOfPagesByTag(tag),
+    getPosts(5),
+  ])
 
 const currentTag = posts[0].Tags.find((t) => t.name === tag)
+
+// <title> を日本語にする。変更前は 'Posts in ガジェット' で、lang="ja" の
+// サイトの中でここだけ英日混在だった。«◯◯ の記事一覧» の形は
+// #112 で作った /category/<slug>/ と /tag/ に合わせたもの
+// «タグの» を入れているのは、#112 で作った /category/<slug>/ と
+// タイトルが衝突するため。カテゴリーの表示名には «ガジェット» があり、
+// Notion 側にも同名のタグがある。どちらも «ガジェット の記事一覧» に
+// すると、中身の違う 2 ページ（アーカイブ 61 件 / Notion 2 件）が
+// 検索結果に同じ名前で並ぶ。どちらも index 対象なので実際に起きる。
+// アーカイブ側（#112）は «◯◯ の記事一覧» で既に公開済みなので、
+// 後から足すこちらに «タグの» を付けて区別する。
+//
+// タグ名を「」で括るのは、半角スペース区切りだと
+// «ポケモンスリープ タグの記事一覧» のようにどこまでがタグ名か
+// 読み取りにくいため。下の description と同じ表記にそろえている
+const title = `「${tag}」タグの記事一覧`
+
+// description を渡さないと Notion のデータベース説明文にフォールバックし、
+// 実測で dist 全 942 ページのうち 10 ページ（うち 5 ページがこのタグページ）が
+// 同じ 1 文になっていた。5 枚とも同じ文なので、検索エンジンから見ると
+// タグごとの違いが無い。件数を入れるのは、タグ名だけだと将来
+// 似た名前のタグが増えたときに区別が付かなくなるため。
+//
+// «N 件の一覧です» とは書けない。このページが並べるのは
+// getPostsByTag(tag, NUMBER_OF_POSTS_PER_PAGE) の最大 10 件で、
+// 11 件以上あるタグでは下にページネーションが出る。全件数だけ書くと
+// «記事 15 件の一覧です» と言いながら 10 件しか並ばない状態になり、
+// この PR が潰しに来た «description が実態と食い違う» そのものになる。
+// 2 ページ目以降（posts/tag/[tag]/page/[page].astro）は元から
+// «◯〜◯ 件目» の形なので、1 ページ目だけ取り残さないよう揃える。
+//
+// ただし全件が 1 ページに収まるときは «N 件の一覧です» で正確なので、
+// そちらを使う。«2 件のうち 1〜2 件目（1/1 ページ目）» は間違っては
+// いないが、読み手に無い区別を読ませることになる。現在の 5 タグは
+// すべてこちら側（記事数は 9 / 9 / 2 / 2 / 2 件）
+const description =
+  numberOfPages > 1
+    ? `「${tag}」タグが付いた記事 ${allTaggedPosts.length} 件のうち、新しい順に 1〜${posts.length} 件目（1/${numberOfPages} ページ目）です。`
+    : `「${tag}」タグが付いた記事 ${allTaggedPosts.length} 件の一覧です。`
 ---
 
-<Layout title={`Posts in ${tag}`} path={`/posts/tag/${tag}`}>
+<Layout title={title} description={description} path={`/posts/tag/${tag}`}>
   <div slot="main" class={styles.main}>
     <header>
       <div class="tag-container">
