@@ -147,8 +147,9 @@ export default defineConfig({
     // そのうえで自前の画像に loading="lazy" と width/height を付ける。
     // rehypeProductBox は <p> を <div> で包み直すだけで画像の順序を
     // 変えないため、3 つの順序はどれでも結果は同じ。
-    // rehypeArchiveHeadings は見出しのタグ名しか触らず、他の 3 つは
-    // <p> と <img> しか触らないので、これもどこに置いても結果は変わらない
+    // rehypeArchiveHeadings が触るのは見出しのタグ名と className で、
+    // 他の 3 つは <p> <a> <div> と <img> しか触らない。触る集合が
+    // 交わらないので、これもどこに置いても結果は変わらない
     rehypePlugins: [
       rehypeProductBox,
       rehypeLazyImages,

@@ -10,8 +10,11 @@ import type { Element, Root } from 'hast'
  * したので、本文の見出しは h2 から始まらなければならない。
  *
  * 609 記事の markdown を実測すると、使われている見出しは
- * 「#### が 397 ファイルに 1,978 個」と「# が 4 ファイルに 5 個」だけで、
- * ## / ### / ##### / ###### は 1 つも無い。
+ * 「#### が 1,979 個」と「# が 4 ファイルに 5 個」の計 1,984 個だけで、
+ * ## / ### / ##### / ###### は 1 つも無い（要素を持つのは 397 ファイル）。
+ * 1,979 のうち 1 個は 3518.md:30 の «> #### あっぷでーと！» で、
+ * 引用の中にある。行頭の #### だけを数えると 1,978 個になって
+ * ビルド後の要素数 1,984 と合わなくなるので注意。
  * つまり本文の見出しは «実質 1 段しか使われていない» ので、
  * 全部 h2 にするのが素直な写像になる。
  *
@@ -30,6 +33,12 @@ import type { Element, Root } from 'hast'
  * 記事側の markdown（src/pages/archive/*.md）を 609 ファイル書き換えるのでは
  * なく変換で済ませているのは、移行した記事を «原文のまま» 置いておくため。
  * 見出しの段の付け方はサイト側の都合で、記事の内容ではない。
+ *
+ * 対象は «markdown 記法の見出し» だけで、本文に直接書かれた生 HTML の
+ * <h1>〜<h6> は対象外。@astrojs/markdown-remark はユーザーの rehype
+ * プラグインを rehypeRaw より «前» に走らせるため、この時点では生 HTML は
+ * まだ raw ノードのままで要素になっていない。609 記事に生 HTML の見出しは
+ * 0 件なので現状は問題にならないが、足すときは注意。
  *
  * 書き方は src/lib/rehype-lazy-images.ts と
  * src/lib/rehype-image-dimensions.ts に合わせてある
@@ -65,10 +74,18 @@ export default function rehypeArchiveHeadings() {
         if (HEADINGS.has(child.tagName)) {
           child.tagName = TARGET
           const properties = (child.properties ??= {})
+          // hast の className は配列とは限らず文字列も取り得る。
+          // Array.isArray だけで分けると «配列でない＝無い» と見なして
+          // 既存の class を無言で捨てることになるので、値の型で分ける
           const existing = properties.className
-          properties.className = Array.isArray(existing)
-            ? [...existing, CLASS_NAME]
-            : [CLASS_NAME]
+          properties.className = [
+            ...(Array.isArray(existing)
+              ? existing
+              : typeof existing === 'string'
+                ? existing.split(/\s+/).filter(Boolean)
+                : []),
+            CLASS_NAME,
+          ]
         }
 
         // 見出しの中に見出しは入らないが、引用やリストの中の見出しも
