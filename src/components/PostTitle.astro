@@ -4,11 +4,28 @@ import { getIconImageURL, getPostLink } from '../lib/blog-helpers.ts'
 
 export interface Props {
   post: Post
-  // 分割代入側でデフォルト値を与えている
+  // 以下は分割代入側でデフォルト値を与えている
   enableLink?: boolean
+  // このタイトルが «そのページの主題» かどうか。true なら h1、false なら h2。
+  //
+  // このコンポーネントは一覧 4 箇所（index.astro / posts/page/[page].astro /
+  // posts/tag/[tag].astro / posts/tag/[tag]/page/[page].astro）と
+  // 記事ページ 1 箇所（posts/[slug].astro）で共用されている。一覧では
+  // 1 ページに最大 10 件並ぶので、無条件に h1 にすると h1 が 10 個できる。
+  //
+  // enableLink を流用しないこと。あれは «タイトルをリンクにするか» で、
+  // たまたま今は記事ページだけ false になっているが、意味が違う。
+  // 「リンクを外したら h1 になった」という結び付き方をさせると、
+  // 一覧で先頭記事だけリンクを外したくなった時点で h1 が 2 つになる
+  isPageHeading?: boolean
 }
 
-const { post, enableLink = true } = Astro.props
+const { post, enableLink = true, isPageHeading = false } = Astro.props
+
+// 動的タグ。Astro は大文字始まりの変数に入れた文字列を «その名前の
+// HTML 要素» として描画し、scoped style 用の data-astro-cid-* も
+// 付けてくれるので、h1 と h2 で中身の markup を二重に書かずに済む
+const Tag = isPageHeading ? 'h1' : 'h2'
 
 let title = post.Title
 
@@ -17,7 +34,7 @@ let title = post.Title
 const iconImageURL = getIconImageURL(post.Icon, `page_id: ${post.PageId}`)
 ---
 
-<h2 class="post-title">
+<Tag class="post-title">
   {
     enableLink ? (
       <a href={getPostLink(post.Slug)}>
@@ -53,7 +70,7 @@ const iconImageURL = getIconImageURL(post.Icon, `page_id: ${post.PageId}`)
       </>
     )
   }
-</h2>
+</Tag>
 
 <style>
   .post-title {
@@ -61,6 +78,11 @@ const iconImageURL = getIconImageURL(post.Icon, `page_id: ${post.PageId}`)
     padding: 0.2rem 0;
     font-size: 2rem;
     font-weight: 700;
+    /* h2 のときは src/styles/layout-global.css の h2 から
+       line-height:1.3 を受け取っていた。h1 には同ファイルに
+       line-height の指定が無く normal になるため、タグが変わっても
+       行間が変わらないようここで明示する */
+    line-height: 1.3;
     color: var(--fg);
   }
   .post-title a {

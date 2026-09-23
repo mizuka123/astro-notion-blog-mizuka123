@@ -35,7 +35,10 @@ const [rankedPosts, tags, recentPosts] = await Promise.all([
   noAds
 >
   <div slot="main" class={styles.main}>
-    <h2>ページが見つかりません</h2>
+    {/* h1 にする理由と見た目の据え置きは
+        src/pages/category/[category].astro と同じ（Issue #98）。
+        文言は上の Layout に渡している title と同じ */}
+    <h1 class={styles.pageHeading}>ページが見つかりません</h1>
     <p>
       お探しのページは、移動または削除された可能性があります。URL
       に誤りが無いかご確認ください。

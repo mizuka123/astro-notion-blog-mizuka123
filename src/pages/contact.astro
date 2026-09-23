@@ -36,6 +36,15 @@ const description =
 
 <Layout title="お問い合わせ" description={description} path="/contact">
   <div slot="main" class={styles.main}>
+    {/*
+      このページには見出しが 1 つも無く、h1 はサイト名だった（Issue #98）。
+      本文は下の Google フォームの iframe だけで、iframe の中身は
+      このページの見出しにはならない。文言は上の Layout に渡している
+      title（＝<title> の「お問い合わせ」）と同じにする。
+      見た目は他の一覧系ページの見出しと同じ
+      （src/styles/blog.module.css の .pageHeading）
+    */}
+    <h1 class={styles.pageHeading}>お問い合わせ</h1>
     <iframe src="https://docs.google.com/forms/d/e/1FAIpQLSccUwCJD4wFdKdkM6cBI-Q9tiWgAwz-Z-xYgOX42leyc3Pong/viewform?embedded=true" width="100%" height="900" frameborder="0" marginheight="0" marginwidth="0">読み込んでいます…</iframe>
   </div>
 

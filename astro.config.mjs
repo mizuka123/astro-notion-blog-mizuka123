@@ -11,6 +11,7 @@ import FeaturedImageDownloader from './src/integrations/featured-image-downloade
 import FileIconDownloader from './src/integrations/file-icon-downloader';
 import OgImageGenerator from './src/integrations/og-image-generator';
 import PublicNotionCopier from './src/integrations/public-notion-copier';
+import rehypeArchiveHeadings from './src/lib/rehype-archive-headings';
 import rehypeImageDimensions from './src/lib/rehype-image-dimensions';
 import remarkArchiveDescription from './src/lib/remark-archive-description';
 import rehypeLazyImages from './src/lib/rehype-lazy-images';
@@ -145,8 +146,15 @@ export default defineConfig({
     // 自動広告が商品名と購入リンクの間に入る。1 つの要素にまとめる。
     // そのうえで自前の画像に loading="lazy" と width/height を付ける。
     // rehypeProductBox は <p> を <div> で包み直すだけで画像の順序を
-    // 変えないため、3 つの順序はどれでも結果は同じ
-    rehypePlugins: [rehypeProductBox, rehypeLazyImages, rehypeImageDimensions],
+    // 変えないため、3 つの順序はどれでも結果は同じ。
+    // rehypeArchiveHeadings は見出しのタグ名しか触らず、他の 3 つは
+    // <p> と <img> しか触らないので、これもどこに置いても結果は変わらない
+    rehypePlugins: [
+      rehypeProductBox,
+      rehypeLazyImages,
+      rehypeImageDimensions,
+      rehypeArchiveHeadings,
+    ],
     // 本文から meta description を作る。frontmatter に description の
     // 項目が無いため、remark 側で file.data.astro.frontmatter に書き込む
     remarkPlugins: [remarkArchiveDescription],

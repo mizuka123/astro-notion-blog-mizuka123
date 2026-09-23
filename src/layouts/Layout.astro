@@ -52,6 +52,22 @@ const {
 const database = await getDatabase()
 
 const { coverImageURL, customIconURL } = getDatabaseImageURLs(database)
+
+// ヘッダーのサイト名をどの要素で出すか。
+//
+// 変更前は全 942 ページで <h1> がサイト名だった。h1 は «そのページが何に
+// ついてのページか» を示す唯一の見出しなので、942 ページ全部が
+// 「みずかるちゃー」というページになっていたことになる。記事ページでは
+// 記事タイトル、一覧ページでは一覧の名前が h1 でなければならない。
+//
+// サイト名が主題として正しいのはトップページだけなので、そこだけ h1 に
+// 残し、それ以外では «見出しではない» <p> にする。見出しを消すのではなく
+// 段を下げないのは、h2 にするとページの主題（h1）より前に h2 が出てしまい、
+// 「サイト名はこのページの一節」という嘘の構造になるため。
+//
+// path のデフォルトが '/' なので、path を渡していないページ＝トップページ。
+// 実際に path を渡していないのは src/pages/index.astro だけ（実測）
+const SiteTitleTag = path === '/' ? 'h1' : 'p'
 ---
 
 <!DOCTYPE html>
@@ -85,7 +101,7 @@ const { coverImageURL, customIconURL } = getDatabaseImageURLs(database)
         <main>
           <div class="content">
             <header>
-              <h1>
+              <SiteTitleTag class="site-title">
                 <a href={getNavLink('/')}>
                   {
                     database.Icon && database.Icon.Type === 'emoji' ? (
@@ -112,7 +128,7 @@ const { coverImageURL, customIconURL } = getDatabaseImageURLs(database)
                     )
                   }
                 </a>
-              </h1>
+              </SiteTitleTag>
               <div class="description">
                 {database.Description}
               </div>
@@ -231,34 +247,56 @@ const { coverImageURL, customIconURL } = getDatabaseImageURLs(database)
   main header {
     padding: 20px 0 20px;
   }
-  main header h1 {
+  /*
+   * ヘッダーのサイト名。トップページだけ <h1>、それ以外は <p> で出す
+   * （Layout.astro の SiteTitleTag と LayoutMd.astro の <p class="site-title">）。
+   * セレクタを h1 から .site-title に変えてあるのは、要素が変わっても
+   * 同じ宣言が当たり続けるようにするため。
+   *
+   * margin / font-size / line-height は «h1 のときに効いていた値» を
+   * そのまま書き写したもの。src/styles/layout-global.css の h1 は
+   * margin:0 と font-size:2rem（640px 以下で 1.6rem）で、line-height の
+   * 指定が無い＝normal。<p> にすると代わりに同ファイルの p ルール
+   * （color:#222 / font-weight:400 / font-size:1rem / line-height:1.8rem）が
+   * 当たるので、4 つとも明示して打ち消す。これで <h1> のときと
+   * <p> のときで計算値が一致し、見た目が変わらない
+   */
+  main header .site-title {
+    margin: 0;
+    font-size: 2rem;
+    line-height: normal;
     font-weight: 700;
     color: #333;
   }
-  main header h1 a {
+  @media (max-width: 640px) {
+    main header .site-title {
+      font-size: 1.6rem;
+    }
+  }
+  main header .site-title a {
     display: block;
     color: inherit;
   }
-  main header h1 a:hover {
+  main header .site-title a:hover {
     color: inherit;
   }
-  main header h1 a span,
-  main header h1 a img {
+  main header .site-title a span,
+  main header .site-title a img {
     display: inline-block;
     font-size: 1.1em;
   }
-  main header h1 a span {
+  main header .site-title a span {
     margin-right: 0.3em;
     margin-left: -0.1rem;
   }
-  main header h1 a img {
+  main header .site-title a img {
     width: 1.2em;
     height: 1.2em;
     margin-right: 0.2em;
     margin-left: -0.3rem;
     vertical-align: sub;
   }
-  main header h1 a img.custom-icon {
+  main header .site-title a img.custom-icon {
     border-radius: var(--radius);
   }
 

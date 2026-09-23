@@ -140,7 +140,9 @@ if (post.FeaturedImage && post.FeaturedImage.Url) {
     <div class={styles.post}>
       <PostDate post={post} />
       <PostTags post={post} />
-      <PostTitle post={post} enableLink={false} />
+      {/* 記事タイトルがこのページの主題なので h1 にする（Issue #98）。
+          一覧ページで同じ PostTitle を使うところは h2 のまま */}
+      <PostTitle post={post} enableLink={false} isPageHeading />
       <PostBody blocks={blocks} />
       <PostTags post={post} />
 

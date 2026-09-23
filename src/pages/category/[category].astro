@@ -110,7 +110,10 @@ const [rankedPosts, tags, recentPosts] = await Promise.all([
   noAds={thin}
 >
   <div slot="main" class={styles.main}>
-    <h2>{title}</h2>
+    {/* このページの主題なので h1。変更前は h2 で、h1 はサイト名だった
+        （Issue #98）。見た目は h2 のときのまま据え置いている
+        （src/styles/blog.module.css の .pageHeading を参照） */}
+    <h1 class={styles.pageHeading}>{title}</h1>
     <p>{description}</p>
     <ul class={taxonomyStyles.entries}>
       {

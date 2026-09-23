@@ -80,7 +80,15 @@ const description = `ブログ記事一覧の ${page}/${numberOfPages} ページ
 <Layout title={title} description={description} path={`/posts/page/${page}`}>
   <div slot="main" class={styles.main}>
     <header>
-      <div class="page-container">{page}/{numberOfPages}</div>
+      {/*
+        変更前はここが «2/3» とだけ書かれた <div> で、このページには
+        主題を示す見出しが無かった（h1 はサイト名。Issue #98）。
+        同じ場所を h1 にして、上の title と同じ文言を出す。
+        «2/3» は文言の中に残っているので、画面から消える情報は無い。
+        見た目は .page-container のまま（下の <style> を参照）で、
+        変わるのは «タグ名» と «出る文字列» だけ
+      */}
+      <h1 class="page-container">{title}</h1>
     </header>
 
     {
