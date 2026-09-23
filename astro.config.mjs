@@ -73,8 +73,13 @@ const hasNoindexMeta = (filePath) => {
     // その 1 語だけを出しているから通っていただけで、'noindex, follow' のような
     // «robots の書式として普通の» 追記をした瞬間にどのページもマッチしなくなり、
     // 183 ページが無言で sitemap に戻る（ビルドも lint も通ってしまう）。
-    // SiteHead.astro 側の meta の直前にも、この正規表現の存在を注記してある
-    return /<meta[^>]+name="robots"[^>]+content="[^"]*noindex/.test(
+    // SiteHead.astro 側の meta の直前にも、この正規表現の存在を注記してある。
+    //
+    // name と content を先読みで別々に見ているのは、属性の «順序» に
+    // 依存しないため。name="robots" が content より前に来ることを当てに
+    // すると、SiteHead.astro 側で属性を並べ替えただけで（出力する値は
+    // 何も変えていないのに）186 ページが無言で sitemap に戻る
+    return /<meta(?=[^>]*name="robots")[^>]*content="[^"]*noindex/.test(
       buffer.toString('utf8', 0, read)
     );
   } catch {

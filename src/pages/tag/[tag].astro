@@ -26,7 +26,11 @@ export async function getStaticPaths() {
   // 日本語スラッグで、params 経由だと URL エンコードの往復が挟まる
   return [...archiveTags.entries()].map(([tag, taxonomy]) => ({
     params: { tag },
-    props: { posts: taxonomy.posts, indexable: taxonomy.indexable },
+    props: {
+      posts: taxonomy.posts,
+      indexable: taxonomy.indexable,
+      thin: taxonomy.thin,
+    },
   }))
 }
 
@@ -35,15 +39,17 @@ export interface Props {
   // src/pages/category/[category].astro と同じ。判断条件は
   // src/lib/archive-taxonomy.ts にだけ置き、ここは結果を受け取るだけ
   indexable: boolean
+  thin: boolean
 }
 
 const { tag } = Astro.params
-const { posts, indexable } = Astro.props
+const { posts, indexable, thin } = Astro.props
 
-// indexable が false のとき noindex と noAds を両方渡す理由は
-// src/pages/category/[category].astro のコメントを参照
+// noindex は indexable、noAds は thin と «別々の» 条件で渡している。
+// 理由は src/pages/category/[category].astro のコメントを参照
 // （薄いページへの広告配信が Google Publisher Policies の
-// Inventory value に触れる）
+// Inventory value に触れる。一方 «重複で index から外しただけ» の
+// ページは薄くないので広告は止めない）
 
 // ページごとに書き分ける。271 ページが同じ説明文だと検索エンジンからは
 // 区別が付かない（#99 と同じ方針）
@@ -66,7 +72,7 @@ const [rankedPosts, tags, recentPosts] = await Promise.all([
   description={description}
   path={`/tag/${tag}`}
   noindex={!indexable}
-  noAds={!indexable}
+  noAds={thin}
 >
   <div slot="main" class={styles.main}>
     <h2>{title}</h2>

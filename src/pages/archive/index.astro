@@ -8,6 +8,7 @@ import {
 import {
   archiveCategories,
   archiveTags,
+  compareSlugs,
   getCategoryDisplayName,
 } from '../../lib/archive-taxonomy'
 import { getNavLink, stripBasePath } from '../../lib/blog-helpers'
@@ -66,7 +67,7 @@ const categoryLinks = [...archiveCategories.entries()]
     name: getCategoryDisplayName(slug),
     count: taxonomy.posts.length,
   }))
-  .sort((a, b) => b.count - a.count || a.slug.localeCompare(b.slug))
+  .sort((a, b) => b.count - a.count || compareSlugs(a.slug, b.slug))
 
 // タグページ 271 枚は、この行が無いとサイト内のどこからもリンクされない
 // 孤立ページになる（実測: dist 全 941 ページで href="/tag/ は 0 件）。

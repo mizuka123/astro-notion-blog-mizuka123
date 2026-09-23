@@ -137,6 +137,19 @@ if (allArchivePosts.length === 0) {
   )
 }
 
+/**
+ * スラッグの並び順。
+ *
+ * localeCompare を使わないのは、引数を省いたときのロケールが実行環境で
+ * 変わるため。実測でこの Windows 機は ja-JP、Cloudflare Pages の Linux は
+ * 通常 en-US に解決される。並びが環境で変わると «どのページを index に
+ * 残すか»（selectIndexableKeys）まで環境依存になり、ビルド成果物の
+ * 突き合わせでも «変えていないのに差分が出る» ことになる。
+ * 符号位置順なら実行環境に依らない
+ */
+export const compareSlugs = (a: string, b: string): number =>
+  a < b ? -1 : a > b ? 1 : 0
+
 interface ClassifiedPost extends ArchivePostRef {
   categories: string[]
   tags: string[]
@@ -147,7 +160,8 @@ interface ClassifiedPost extends ArchivePostRef {
 // date は全件 'YYYY-MM-DD' なので辞書順と日付順が一致するが、
 // Notion 側の日付が ISO 8601 で来る例に合わせて Date で比較する。
 // 同日の記事は url で決めて、ビルドのたびに並びが入れ替わらないようにする
-// （並びが揺れると差分比較で «変わっていないのに差分が出る»）
+// （並びが揺れると差分比較で «変わっていないのに差分が出る»）。
+// localeCompare ではなく compareSlugs を使う理由は上の定義を参照
 const classifiedPosts: ClassifiedPost[] = allArchivePosts
   .filter((post) => !post.frontmatter.draft)
   .map((post) => ({
@@ -159,7 +173,7 @@ const classifiedPosts: ClassifiedPost[] = allArchivePosts
   }))
   .sort((a, b) => {
     const diff = new Date(b.date).getTime() - new Date(a.date).getTime()
-    return diff !== 0 ? diff : a.url.localeCompare(b.url)
+    return diff !== 0 ? diff : compareSlugs(a.url, b.url)
   })
 
 const groupBy = (
@@ -197,6 +211,17 @@ export interface ArchiveTaxonomy {
   posts: ArchivePostRef[]
   /** 検索エンジンに載せる（＝ noindex を出さず sitemap に載せる）かどうか */
   indexable: boolean
+  /**
+   * 記事が INDEX_MIN_POSTS 件未満で «中身が無いに等しい» かどうか。
+   *
+   * indexable と分けてあるのは、両者が食い違うページが実測で 4 枚あるため。
+   * 記事集合が他と完全に同じで index から外した 4 枚（記事 4 / 5 / 3 / 3 件）は
+   * 薄くはない。広告を止める根拠は Google Publisher Policies の
+   * "low-value content" なので、そちらは thin で判断する。indexable で
+   * 判断すると «一字一句同じ相方は広告を出しているのに、こちらは出さない»
+   * という説明の付かない状態になる
+   */
+  thin: boolean
 }
 
 /**
@@ -226,25 +251,25 @@ export interface ArchiveTaxonomy {
  * 逆の結果になったら、規則ではなくこのコメントを疑うこと
  */
 const selectIndexableKeys = (): ReadonlySet<string> => {
-  const byName = (a: string, b: string) => a.localeCompare(b)
   const candidates = [
-    ...[...categoryPosts.keys()].sort(byName).map((name) => ({
+    ...[...categoryPosts.keys()].sort(compareSlugs).map((name) => ({
       key: `category/${name}`,
       posts: categoryPosts.get(name)!,
     })),
     ...[...tagPosts.keys()]
-      .sort(byName)
+      .sort(compareSlugs)
       .map((name) => ({ key: `tag/${name}`, posts: tagPosts.get(name)! })),
   ].filter(({ posts }) => posts.length >= INDEX_MIN_POSTS)
 
   const seenSignatures = new Set<string>()
   const indexable = new Set<string>()
   for (const { key, posts } of candidates) {
-    // classifiedPosts を 1 回だけ並べ替えてから配り、groupBy がその順序を
-    // 崩さないので、同じ記事集合なら url の並びまで必ず一致する。
-    // ここで sort し直さないのはそのため（同じ集合なのに署名が違う、
-    // という取りこぼしは起きない）
-    const signature = JSON.stringify(posts.map((post) => post.url))
+    // 比べたいのは «同じ記事の集合か» であって並び順ではない。
+    // classifiedPosts を 1 回だけ並べ替えてから配っている以上、今は
+    // 並べ直さなくても順序は一致するが、それは配る側の実装に依存した
+    // 偶然でしかない。将来どこかで並べ方を変えたとき、ここは黙って
+    // 重複を «取りこぼす» 側に倒れるので、比較の前に並びを揃えておく
+    const signature = JSON.stringify([...posts.map((post) => post.url)].sort())
     if (seenSignatures.has(signature)) {
       continue
     }
@@ -263,7 +288,11 @@ const toTaxonomyMap = (
   new Map(
     [...groups].map(([name, posts]) => [
       name,
-      { posts, indexable: indexableKeys.has(`${kind}/${name}`) },
+      {
+        posts,
+        indexable: indexableKeys.has(`${kind}/${name}`),
+        thin: posts.length < INDEX_MIN_POSTS,
+      },
     ])
   )
 

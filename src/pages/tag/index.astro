@@ -1,6 +1,6 @@
 ---
 import { getPosts, getRankedPosts, getAllTags } from '../../lib/notion/client'
-import { archiveTags } from '../../lib/archive-taxonomy'
+import { archiveTags, compareSlugs } from '../../lib/archive-taxonomy'
 import { getNavLink } from '../../lib/blog-helpers'
 import Layout from '../../layouts/Layout.astro'
 import BlogPostsLink from '../../components/BlogPostsLink.astro'
@@ -30,17 +30,20 @@ const tagLinks = [...archiveTags.entries()]
   .map(([name, taxonomy]) => ({ name, count: taxonomy.posts.length }))
   // 記事数の多い順。同数はスラッグ昇順にして、ビルドごとに並びが
   // 入れ替わらないようにする（/archive/ のカテゴリー導線と同じ規則）
-  .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+  .sort((a, b) => b.count - a.count || compareSlugs(a.name, b.name))
 
 // このページ自身は index 対象。Layout に noindex を渡さない。
 // title と description はページ固有にする（/posts/ 配下でサイト共通の
 // 説明文を使い回して困った #99 と同じ）
 const title = 'タグから探す'
 // 「記事が 3 件以上ある 86 件」とは書けない。3 件以上のタグは 90 件あり、
-// そのうち 4 件は他のタグと記事の顔ぶれが完全に同じなので外してある
+// そのうち 4 件は記事の顔ぶれが他と完全に同じなので外してある
 // （src/lib/archive-taxonomy.ts の indexable の判定）。件数の根拠を
-// 取り違えた説明文をサイトに出さないため、条件を両方書く
-const description = `アーカイブ記事をタグから辿る一覧です。記事が 3 件以上あり、他のタグと記事の顔ぶれが重ならない ${tagLinks.length} 件を載せています。`
+// 取り違えた説明文をサイトに出さないため、条件を両方書く。
+// 「他のタグと」ではなく「他のタグやカテゴリーと」なのは、外した 4 件の
+// うち kindle-paperwhite だけが tag ではなく category/kindle と重なった
+// ために落ちているため
+const description = `アーカイブ記事をタグから辿る一覧です。記事が 3 件以上あり、他のタグやカテゴリーと記事の顔ぶれが重ならない ${tagLinks.length} 件を載せています。`
 
 const [rankedPosts, tags, recentPosts] = await Promise.all([
   getRankedPosts(),

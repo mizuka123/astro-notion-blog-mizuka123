@@ -28,7 +28,11 @@ export async function getStaticPaths() {
   // 一致する保証が無くなる。ここで組にしておけば往復自体が起きない
   return [...archiveCategories.entries()].map(([category, taxonomy]) => ({
     params: { category },
-    props: { posts: taxonomy.posts, indexable: taxonomy.indexable },
+    props: {
+      posts: taxonomy.posts,
+      indexable: taxonomy.indexable,
+      thin: taxonomy.thin,
+    },
   }))
 }
 
@@ -39,30 +43,36 @@ export interface Props {
   // 完全一致しないこと» の 2 つあり、ここに書き写すとカテゴリー側とタグ側で
   // 条件がずれる
   indexable: boolean
+  thin: boolean
 }
 
 const { category } = Astro.params
-const { posts, indexable } = Astro.props
+const { posts, indexable, thin } = Astro.props
 
 /*
- * indexable が false のとき、noindex と noAds を «両方» 渡す。
+ * noindex と noAds を渡す条件は «別々» で、同じではない。
  *
  * Google Publisher Policies の Inventory value には
  * "Google-served ads on screens without publisher-content" という項目があり、
  * publisher-content の無い画面に加えて "with low-value content" の画面と
  * "used for alerts/navigation" の画面への広告配信も禁じている。
- * index 対象でないタクソノミーページは «記事リンクが 1〜2 本あるだけ» で、
- * まさに low-value content かつ navigation にあたる。実測で
- * dist/category/pc-web/index.html には adsbygoogle が 1 件入っていた。
+ * 記事リンクが 1〜2 本あるだけのページ（thin）は、まさに low-value content
+ * かつ navigation にあたる。実測で dist/category/pc-web/index.html には
+ * adsbygoogle が 1 件入っていた。
  * 違反はそのページの配信停止にとどまらず、繰り返せばアカウント単位の措置。
+ *
+ * noAds を indexable ではなく thin で判断しているのはここが理由。
+ * 記事集合が他と完全に同じで index から外した 4 枚（記事 4 / 5 / 3 / 3 件）は
+ * 薄くないので広告を止めない。indexable で判断すると «一字一句同じ相方は
+ * 広告を出しているのに、こちらは出さない» という説明の付かない状態になる。
  *
  * SiteHead.astro 側で noindex から noAds を導かないのは、2 つが別の判断で
  * あることを壊さないため（404 ページは URL が実在しないから noindex で、
  * 行き止まりだから noAds）。ここは «同じ判断から両方が出ている» ので、
  * ページ側で 2 つとも渡す形にしてある。
  *
- * 逆に index 対象のページ（カテゴリー 26 / タグ 86）では広告を出したままに
- * する。判断が割れるのは、同じ «記事へのリンクが並ぶだけのページ» である
+ * 逆に薄くないページでは広告を出したままにする。
+ * 判断が割れるのは、同じ «記事へのリンクが並ぶだけのページ» である
  * /archive/（リンク 609 本）と /posts/page/N が元から広告を出しているから。
  * そちらに手を入れるかどうかは本 PR の範囲外で、ここだけ先に消すと
  * 「同種のページで扱いが違う」状態を新しく作ることになる。
@@ -97,7 +107,7 @@ const [rankedPosts, tags, recentPosts] = await Promise.all([
   description={description}
   path={`/category/${category}`}
   noindex={!indexable}
-  noAds={!indexable}
+  noAds={thin}
 >
   <div slot="main" class={styles.main}>
     <h2>{title}</h2>
