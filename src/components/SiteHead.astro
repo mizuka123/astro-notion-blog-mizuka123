@@ -49,6 +49,9 @@ const database = await getDatabase()
 const siteTitle = title ? `${title} - ${database.Title}` : database.Title
 const siteDescription = description ? description : database.Description
 const siteURL = new URL(getNavLink(path), Astro.site).toString()
+// author / publisher の url に使うサイトのトップ。
+// getNavLink('/') を通すのは BASE_PATH を設定したときに揃えるため
+const siteHomeURL = new URL(getNavLink('/'), Astro.site).toString()
 const siteOGImage = new URL(
   getStaticFilePath('/default-og-image.png'),
   Astro.site
@@ -87,9 +90,22 @@ const articleJsonLd =
         url: siteURL,
         // 著者名も発行者名も Notion のデータベースタイトルから取る。
         // 個人名は Notion 側にもリポジトリにも無いので、実在しない名前を
-        // 作らず、og:site_name と同じ値（＝ブログ自体）を主体として出す
-        author: { '@type': 'Organization', name: database.Title },
-        publisher: { '@type': 'Organization', name: database.Title },
+        // 作らず、og:site_name と同じ値（＝ブログ自体）を主体として出す。
+        //
+        // url を添えるのは Google が明示的に推奨しているため。Article の
+        // 構造化データのドキュメントに「A link to a web page that uniquely
+        // identifies the author」「helps Google better understand and
+        // represent the author」とある。同名の別サイトと区別が付く
+        author: {
+          '@type': 'Organization',
+          name: database.Title,
+          url: siteHomeURL,
+        },
+        publisher: {
+          '@type': 'Organization',
+          name: database.Title,
+          url: siteHomeURL,
+        },
       }
     : null
 
