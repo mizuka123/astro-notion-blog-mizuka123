@@ -127,6 +127,12 @@ if (post.FeaturedImage && post.FeaturedImage.Url) {
 // articleDate は構造化データの datePublished になる。Notion の Date
 // プロパティが未設定だと client.ts が空文字を入れるため、SiteHead 側で
 // 空なら JSON-LD ごと出さない。日付の無い記事に嘘の日付を付けないため
+//
+// articleImage は構造化データの image。og:image と同じ画像を渡す。
+// FeaturedImage が無い記事では空になり、JSON-LD に image を出さない
+// （og:image は共通画像に落ちるが、記事を表さない画像を構造化データで
+// «この記事の画像» と申告しない）。実測では 23 記事すべてに
+// FeaturedImage があり、この分岐に入る記事は今は無い
 ---
 
 <Layout
@@ -134,6 +140,7 @@ if (post.FeaturedImage && post.FeaturedImage.Url) {
   description={post.Excerpt.trim() || descriptionFromBlocks(blocks)}
   path={`/posts/${post.Slug}`}
   ogImage={ogImage}
+  articleImage={ogImage}
   articleDate={post.Date}
 >
   <div slot="main" class={styles.main}>
