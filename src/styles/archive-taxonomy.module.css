@@ -6,7 +6,7 @@
  * 必要があるのは Layout.astro のように «素の要素セレクタ» を書く場合で、
  * ここはすべてクラス起点なので CSS module に出せる。CSS module ならクラス名
  * 自体がハッシュ化されて衝突しないので、適用範囲は scoped と変わらない。
- * src/styles/blog.module.css（.main / .aside）と同じ形。
+ * src/styles/blog.module.css（.main / .post）と同じ形。
  */
 
 /* タクソノミーページの記事一覧 */
