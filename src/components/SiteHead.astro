@@ -42,6 +42,15 @@ export interface Props {
   // パスの正規表現では «記事ページだけ» を切り出せないため。
   // 公開日を持っているのは記事ページだけなので、それを目印にする
   articleDate?: string
+  // 記事用の構造化データ（JSON-LD）の image。絶対 URL で渡す。
+  // 空なら image プロパティ自体を出さない。
+  // og:image と別に受け取るのは、og:image は «何か出さないと SNS の
+  // カードが画像無しになる» ので共通画像に落とすが、JSON-LD の image は
+  // Google の推奨項目（必須ではない）で、"Images must represent the
+  // marked up content." とあるため。記事を表さない共通画像を出すより
+  // 省く方が要件に沿う。以前は (ogImage || 共通画像) を出していたので、
+  // og:image が共通画像のアーカイブ記事 377 件で共通画像を申告していた
+  articleImage?: string
 }
 
 // このコンポーネントの利用箇所は Layout.astro と LayoutMd.astro だけで、
@@ -58,6 +67,7 @@ const {
   noCanonical = false,
   noAds = false,
   articleDate = '',
+  articleImage = '',
 } = Astro.props
 
 const database = await getDatabase()
@@ -100,7 +110,9 @@ const articleJsonLd =
         '@type': 'BlogPosting',
         headline: title,
         description: siteDescription,
-        image: (ogImage || siteOGImage).toString(),
+        // 空のときはキーごと出さない。キーの位置は以前と同じにしてあり、
+        // 値が同じページの出力は 1 バイトも変わらない
+        ...(articleImage ? { image: articleImage } : {}),
         datePublished: articleDate,
         mainEntityOfPage: { '@type': 'WebPage', '@id': siteURL },
         url: siteURL,

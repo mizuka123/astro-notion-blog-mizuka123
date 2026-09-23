@@ -14,7 +14,7 @@ import {
   getDatabaseImageURLs,
   stripBasePath,
 } from '../lib/blog-helpers'
-import { archiveOgImagePath } from '../lib/archive-og-image'
+import { archiveImages } from '../lib/archive-og-image'
 import '../styles/syntax-coloring.css'
 import '../styles/layout-global.css'
 import GoogleAnalytics from '../components/GoogleAnalytics.astro'
@@ -49,6 +49,9 @@ interface ArchiveLayoutFrontmatter {
   // 記事側には書かれていない。remark-archive-description が本文から作って
   // file.data.astro.frontmatter に入れたものを受け取る
   description?: string
+  // これも記事側には書かれていない。remark-archive-images が本文の
+  // /archive/images/ の画像 URL を出現順に入れたものを受け取る
+  bodyImages?: string[]
 }
 
 // Markdown レイアウトなので frontmatter / file / url などは Astro が渡す。
@@ -87,12 +90,20 @@ const {
 // URL ではなくファイル名が出力されていた。相対解決すると画像ではなく
 // HTML が返るため、609 記事すべてで SNS のカード画像が出ていなかった。
 //
-// archiveOgImagePath() は実体があって十分な大きさのものだけパスを返す。
-// 小さすぎるサムネイルは空が返り、SiteHead が共通の OGP 画像を使う
-const archiveOgPath = archiveOgImagePath(frontmatter.coverImage)
-const ogImage =
-  ogImageProp ||
-  (archiveOgPath ? new URL(archiveOgPath, Astro.site).toString() : '')
+// archiveImages() は coverImage → 本文の画像の順に見て、og:image 用
+// （幅 600px 以上）と JSON-LD 用（og:image と同じか、幅×高さ 50,000 以上）の
+// パスを選ぶ。og:image 用が空なら SiteHead が共通の OGP 画像を使い、
+// JSON-LD 用が空なら image を出さない
+const archivePaths = archiveImages(
+  frontmatter.coverImage,
+  frontmatter.bodyImages
+)
+const toAbsolute = (p: string): string =>
+  p ? new URL(p, Astro.site).toString() : ''
+// ogImage を props で上書きされたときは JSON-LD もそれに揃える。
+// og:image と JSON-LD の image が別の画像を指さないようにするため
+const ogImage = ogImageProp || toAbsolute(archivePaths.ogImage)
+const articleImage = ogImageProp || toAbsolute(archivePaths.jsonLdImage)
 
 const database = await getDatabase()
 
@@ -114,6 +125,7 @@ const post: Pick<Post, 'Date' | 'Title'> = {
       description={description}
       path={path}
       ogImage={ogImage}
+      articleImage={articleImage}
       articleDate={frontmatter.date}
     />
   </head>

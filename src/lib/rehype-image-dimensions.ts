@@ -1,6 +1,5 @@
-import path from 'node:path'
 import type { Element, Root } from 'hast'
-import { BASE_PATH } from '../server-constants'
+import { archiveImageFilePath } from './archive-image-file'
 import { imageSize } from './image-size'
 
 /**
@@ -18,42 +17,9 @@ import { imageSize } from './image-size'
  * （縦横比だけが伝わる）。
  */
 
-// 対象はこの下にある画像だけ。移行した記事の画像はすべてここにある。
-// 外部の画像は寸法が分からないうえ、アフィリエイトの計測ビーコンも
-// <img> なので触らない
-const URL_PREFIX = '/archive/images/'
-const FILE_DIR = 'public/archive/images'
-
-/** URL のパスから、読み出すファイルのパスを返す。対象外なら null。 */
-const toFilePath = (src: unknown): string | null => {
-  if (typeof src !== 'string') return null
-
-  // BASE_PATH を設定している場合は取り除いてから見る。
-  // 切り落とした残りが / で始まることまで確かめる。単なる前方一致だと
-  // BASE_PATH='/arch' のような値のときに /archive/images/x.jpg を
-  // 削りすぎて、黙って対象外になってしまう
-  const rest =
-    BASE_PATH && src.startsWith(BASE_PATH) ? src.slice(BASE_PATH.length) : null
-  const withoutBase = rest !== null && rest.startsWith('/') ? rest : src
-  if (!withoutBase.startsWith(URL_PREFIX)) return null
-
-  // 記事には %2B（+ のエンコード）を含む参照が 76 件ある。
-  // デコードしないとファイルが見つからない
-  let name: string
-  try {
-    name = decodeURIComponent(withoutBase.slice(URL_PREFIX.length))
-  } catch {
-    // 不正なエスケープ。寸法を付けないだけで表示には影響しない
-    return null
-  }
-
-  // ディレクトリを抜け出す参照は扱わない
-  if (!name || name.includes('/') || name.includes('\\') || name === '..') {
-    return null
-  }
-
-  return path.join(FILE_DIR, name)
-}
+// URL からファイルへの変換（/archive/images/ の下だけを対象にし、
+// / や \、..、不正なエスケープを弾く）は archive-image-file.ts にある。
+// archive-og-image.ts も本文の画像を読むので、安全策を 1 か所にまとめてある
 
 export default function rehypeImageDimensions() {
   return (tree: Root): void => {
@@ -62,7 +28,7 @@ export default function rehypeImageDimensions() {
         if (child.type !== 'element') continue
 
         if (child.tagName === 'img') {
-          const filePath = toFilePath(child.properties?.src)
+          const filePath = archiveImageFilePath(child.properties?.src)
           // 記事側が片方でも書いているなら何もしない。
           // 足りない方だけを埋めると、記事が意図した比率と混ざって
           // 表示が歪む方が困る（現状 /archive/images/ を指す生 <img> は
