@@ -1,7 +1,9 @@
 ---
 import type { SelectProperty } from '../../../../../lib/interfaces.ts'
+import { NUMBER_OF_POSTS_PER_PAGE } from '../../../../../server-constants.ts'
 import {
   getPosts,
+  getPostsByTag,
   getPostsByTagAndPage,
   getRankedPosts,
   getAllTags,
@@ -41,19 +43,50 @@ export async function getStaticPaths() {
 
 const { tag, page } = Astro.params
 
-const [posts, rankedPosts, tags, numberOfPages, recentPosts] = await Promise.all([
-  getPostsByTagAndPage(tag, parseInt(page, 10)),
-  getRankedPosts(),
-  getAllTags(),
-  getNumberOfPagesByTag(tag),
-  getPosts(5),
-])
+// このページは現在 0 枚しか生成されない。getStaticPaths が 2 ページ目以降を
+// 作るのは記事が NUMBER_OF_POSTS_PER_PAGE（10）件を超えたタグだけで、
+// 実測ではタグ 5 件の記事数が 9 / 9 / 2 / 2 / 2 件と全て 10 件以下のため。
+// それでも <title> と description を /posts/tag/<tag>/ と揃えて直しておく。
+// 記事が 1 件増えて 11 件になった時点で «英語の title とサイト共通の
+// description を持つページ» が突然生えてくるのを防ぐため
+//
+// allTaggedPosts は «そのタグの全記事数» を description に入れるために取る。
+// getPostsByTagAndPage() が返すのはこのページの分（最大 10 件）だけ。
+// どちらも getAllPosts() のメモリキャッシュを絞り込むだけなので
+// Notion へのリクエストは増えない
+const [posts, allTaggedPosts, rankedPosts, tags, numberOfPages, recentPosts] =
+  await Promise.all([
+    getPostsByTagAndPage(tag, parseInt(page, 10)),
+    getPostsByTag(tag, Number.MAX_SAFE_INTEGER),
+    getRankedPosts(),
+    getAllTags(),
+    getNumberOfPagesByTag(tag),
+    getPosts(5),
+  ])
 
 const currentTag = posts[0].Tags.find((t) => t.name === tag)
+
+// 何件目から何件目を載せているか。getPostsByTagAndPage() と同じ
+// NUMBER_OF_POSTS_PER_PAGE 区切りなので開始位置はページ番号から出せる。
+// 終わりは posts.length から出す（最終ページは 10 件に満たない）
+const firstPostNumber = (parseInt(page, 10) - 1) * NUMBER_OF_POSTS_PER_PAGE + 1
+const lastPostNumber = firstPostNumber + posts.length - 1
+
+// <title> は /posts/tag/<tag>/（1 ページ目）の «◯◯ の記事一覧» に
+// 「N/M ページ目」を足した形。変更前は 'Posts in ガジェット 2/3' だった。
+// 数字を「2/3」のままにしているのは /posts/page/<n> と同じ理由で、
+// 画面上部の見出しと Pagination が元からこの表記を使っているため
+const title = `${tag} の記事一覧 ${page}/${numberOfPages} ページ目`
+
+// description を渡さないと Notion のデータベース説明文にフォールバックし、
+// サイト共通の 1 文を使い回すページがまた増える。件数と «何件目から
+// 何件目か» を入れて、同じタグの 1 ページ目とも別ページとも重ならない文にする
+const description = `「${tag}」タグが付いた記事 ${allTaggedPosts.length} 件のうち、新しい順に ${firstPostNumber}〜${lastPostNumber} 件目（${page}/${numberOfPages} ページ目）です。`
 ---
 
 <Layout
-  title={`Posts in ${tag} ${page}/${numberOfPages}`}
+  title={title}
+  description={description}
   path={`/posts/tag/${tag}/page/${page}`}
 >
   <div slot="main" class={styles.main}>
