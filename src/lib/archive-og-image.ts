@@ -33,7 +33,15 @@ const MIN_JSON_LD_PIXELS = 50_000
 // （16:9 / 4:3 / 1:1）に切り抜くと中身がほぼ残らない。
 // 3 は 16:9（1.78）と 1.91:1 に余裕を持たせた上限。
 // 高さ 157px は上の MIN_WIDTH のコメントにある summary_large_image の
-// 下限（300x157）の高さで、幅 600px 以上でも高さが足りない画像を外す
+// 下限（300x157）の高さ。
+//
+// ただし今の値の組み合わせでは、この高さの条件は «何も外していない»。
+// 幅 600px 以上かつ縦横比 3 以下なら、高さは必ず 200px 以上になる
+// （600 / 3 = 200）。実際に 644x54 を外しているのは縦横比の条件の方。
+// 同じ理由で、og:image に選ばれた画像は必ず 600 x 200 = 120,000px 以上あり、
+// JSON-LD が og:image を引き継ぐときの 5 万 px の確認（下の isJsonLdSized）も
+// 常に通る。どちらも MIN_WIDTH や MAX_ASPECT_RATIO を将来変えたときに
+// 抜け道ができないよう残している保険で、今の出力には影響しない
 const MAX_ASPECT_RATIO = 3
 const MIN_OG_HEIGHT = 157
 
@@ -157,6 +165,8 @@ export const archiveImages = (
   }
 
   const og = candidates.find((c) => c.fromBody && isOgSized(c.size))
+  // og が決まっていれば isJsonLdSized(og.size) は今の定数では常に真
+  // （MIN_OG_HEIGHT のコメント参照）。定数を変えたときの保険として残している
   const ld =
     og && isJsonLdSized(og.size)
       ? og
