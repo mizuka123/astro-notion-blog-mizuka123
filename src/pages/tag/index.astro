@@ -1,0 +1,82 @@
+---
+import { getPosts, getRankedPosts, getAllTags } from '../../lib/notion/client'
+import { archiveTags } from '../../lib/archive-taxonomy'
+import { getNavLink } from '../../lib/blog-helpers'
+import Layout from '../../layouts/Layout.astro'
+import BlogPostsLink from '../../components/BlogPostsLink.astro'
+import BlogTagsLink from '../../components/BlogTagsLink.astro'
+import styles from '../../styles/blog.module.css'
+import taxonomyStyles from '../../styles/archive-taxonomy.module.css'
+
+/*
+ * タグページを «サイト内から辿れる» ようにするための一覧。
+ *
+ * このページを足す前は、dist 全 941 ページのうち href="/tag/ を含む HTML が
+ * 0 件だった。271 枚のタグページはどこからもリンクされておらず、sitemap と
+ * 旧 URL の被リンクからしか到達できない孤立ページになっていた。
+ *
+ * Google の spam policies は誘導ページ（doorway pages）の判定基準として
+ * 「a clearly defined, browseable hierarchy ではなく、検索結果に近いページ」を
+ * 挙げている。sitemap から外して «隠す» 方向で辻褄を合わせるのではなく、
+ * 階層の入口を 1 枚足して «辿れるようにして» 直す。
+ *
+ * 載せるのは index 対象のタグだけ。noindex にしたタグ（記事 2 本以下、
+ * および記事集合が他と完全一致するもの）は、旧 URL の被リンクを 404 に
+ * しないために 200 を返し続けるだけでよく、ここに並べると
+ * 「インデックスさせない」と言いながら導線を作ることになる
+ */
+const tagLinks = [...archiveTags.entries()]
+  .filter(([, taxonomy]) => taxonomy.indexable)
+  .map(([name, taxonomy]) => ({ name, count: taxonomy.posts.length }))
+  // 記事数の多い順。同数はスラッグ昇順にして、ビルドごとに並びが
+  // 入れ替わらないようにする（/archive/ のカテゴリー導線と同じ規則）
+  .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+
+// このページ自身は index 対象。Layout に noindex を渡さない。
+// title と description はページ固有にする（/posts/ 配下でサイト共通の
+// 説明文を使い回して困った #99 と同じ）
+const title = 'タグから探す'
+const description = `アーカイブ記事に付けたタグのうち、記事が 3 件以上ある ${tagLinks.length} 件の一覧です。`
+
+const [rankedPosts, tags, recentPosts] = await Promise.all([
+  getRankedPosts(),
+  getAllTags(),
+  getPosts(5),
+])
+---
+
+<Layout title={title} description={description} path="/tag">
+  <div slot="main" class={styles.main}>
+    <h2>{title}</h2>
+    <p>{description}</p>
+    <ul class={taxonomyStyles.taxonomyLinks}>
+      {
+        tagLinks.map((tag) => (
+          <li>
+            {/*
+              件数はリンクの隣に小さく出しているだけなので、読み上げでは
+              「ガジェット 61」としか伝わらない。aria-label でリンク自身に
+              「何の 61 なのか」を持たせ、見た目の数字は aria-hidden で
+              二重読みを防ぐ
+            */}
+            <a
+              href={getNavLink(`/tag/${tag.name}`)}
+              aria-label={`${tag.name} の記事一覧（${tag.count} 件）`}
+            >
+              {tag.name}
+            </a>
+            <span class={taxonomyStyles.count} aria-hidden="true">
+              {tag.count}
+            </span>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+
+  <div slot="aside" class={styles.aside}>
+    <BlogPostsLink heading="おすすめ記事" posts={rankedPosts} />
+    <BlogPostsLink heading="最新記事" posts={recentPosts} />
+    <BlogTagsLink heading="カテゴリー" tags={tags} />
+  </div>
+</Layout>

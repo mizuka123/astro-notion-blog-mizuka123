@@ -8,17 +8,32 @@ export interface Props {
   description?: string
   path?: string
   ogImage?: string
-  // 404 ページのように、URL が固定されずインデックスさせたくないページ用。
-  // true のときは canonical と og:url を出さない。存在しない URL で
-  // 配信されるページに「この URL が正規」と宣言させないため
+  // robots に noindex を出す。«このページを検索結果に載せない» だけを
+  // 意味し、canonical と og:url の有無には関わらない。
+  // 以前はここで canonical と og:url も落としていたが、それは 404 ページの
+  // «URL が固定されない» という別の性質に由来する挙動で、noindex とは
+  // 条件が違う。実在する URL の noindex ページ（/category/ と /tag/ の
+  // 薄い 186 枚）で og:url が消えると、SNS がシェアを同一オブジェクトに
+  // 集約できなくなる。分けた先が下の noCanonical
   noindex?: boolean
+  // canonical と og:url を出さない。
+  // 404 ページのように «どの URL で配信されるか決まっていない» ページ用で、
+  // 存在しない URL を「この URL が正規」と宣言させないためのもの。
+  // noindex と別にしてあるのは、noAds と同じく «別の判断» だから。
+  // noindex は「検索結果に載せない」、noCanonical は「正規 URL を名乗らない」で、
+  // 404 ページだけがたまたま両方に当てはまる
+  noCanonical?: boolean
   // 広告とアフィリエイトのスクリプトを出さない。
   // Google の Publisher Policies は «エラーページへの広告掲載を明確に禁止»
   // している（"Ads should not be placed on 'dead end' or no content screens
-  // (e.g., Thank You, Exit, Error pages, etc.)"）。違反はそのページの配信停止、
-  // 繰り返せばアカウント単位の措置につながる。
+  // (e.g., Thank You, Exit, Error pages, etc.)"）。同じ Inventory value の
+  // 項目が "with low-value content" の画面も禁じており、記事リンクが
+  // 1〜2 本あるだけのタクソノミーページはこちらに当たる。違反はそのページの
+  // 配信停止、繰り返せばアカウント単位の措置につながる。
   // noindex とは別にしてあるのは、「インデックスさせない」と「広告を出さない」が
-  // 別の判断だから。片方だけ必要になったときに巻き添えで壊れないようにする
+  // 別の判断だから。片方だけ必要になったときに巻き添えで壊れないようにする。
+  // «同じ判断から両方渡す» ページ（薄いタクソノミーページ）は、呼び出し側で
+  // 2 つとも渡している。ここで noindex から導かないこと
   noAds?: boolean
   // 記事ページからだけ渡す公開日（'YYYY-MM-DD' か ISO 8601）。
   // これが入っているページだけ記事用の構造化データを出す。
@@ -40,6 +55,7 @@ const {
   path = '/',
   ogImage = '',
   noindex = false,
+  noCanonical = false,
   noAds = false,
   articleDate = '',
 } = Astro.props
@@ -120,6 +136,18 @@ const articleJsonLdText = articleJsonLd
 ---
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+{
+  /*
+    この robots の meta が出す文字列を、astro.config.mjs の isIndexablePage が
+    «正規表現で» 読んでいる（sitemap に載せるかどうかの判定が、出来上がった
+    HTML に noindex が入っているかに依存している）。
+    content の値を変えるときは astro.config.mjs も必ず一緒に直すこと。
+    直し忘れても «ビルドも lint も通る» まま、186 ページが無言で sitemap に
+    戻る（向こう側の正規表現は content の «一部に» noindex があれば拾う形に
+    してあるので、'noindex, follow' のような追加なら壊れないが、
+    'none' に変えるといった置き換えは通らない）
+  */
+}
 <meta
   name="robots"
   content={noindex ? 'noindex' : 'max-image-preview:large'}
@@ -128,8 +156,8 @@ const articleJsonLdText = articleJsonLd
 <meta name="generator" content={Astro.generator} />
 <title>{siteTitle}</title>
 <meta name="description" content={siteDescription} />
-{!noindex && <link rel="canonical" href={siteURL} />}
-{!noindex && <meta property="og:url" content={siteURL} />}
+{!noCanonical && <link rel="canonical" href={siteURL} />}
+{!noCanonical && <meta property="og:url" content={siteURL} />}
 <meta property="og:title" content={siteTitle} />
 <meta property="og:description" content={siteDescription} />
 <meta property="og:site_name" content={database.Title} />

@@ -22,16 +22,16 @@ import sitemap from '@astrojs/sitemap';
  *
  * これまで sitemap() は無指定で、出力された 643 ページのうち 642 件
  * （sitemap が元から外す 404.html を除く全部）が載っていた。今回
- * /category/ と /tag/ を 298 ページ増やすが、そのうち記事 3 本未満の
- * 183 ページ（カテゴリー pc-web の 1 件 + タグ 182 件）には noindex を
- * 出している。「インデックスするな」と書いたページを sitemap で
- * 「インデックスしろ」と差し出すのは自己矛盾で、Google は sitemap 全体の
- * 信頼度を下げる。
+ * /category/ と /tag/ を 299 ページ増やすが、そのうち 186 ページ
+ * （カテゴリー pc-web の 1 件 + タグ 185 件）には noindex を出している。
+ * 「インデックスするな」と書いたページを sitemap で「インデックスしろ」と
+ * 差し出すのは自己矛盾で、Google は sitemap 全体の信頼度を下げる。
  *
  * 判定は «出来上がった HTML に noindex が入っているか» で行う。
- * 記事 3 本未満という閾値は src/lib/archive-taxonomy.ts の
- * INDEX_MIN_POSTS にあり、ページ側がそれを見て noindex を出している。
- * ここで同じ条件をもう一度書くと、閾値を変えたときに «noindex なのに
+ * どのページを noindex にするかは src/lib/archive-taxonomy.ts が決めていて
+ * （記事数が INDEX_MIN_POSTS 未満か、記事集合が他のタクソノミーと完全一致
+ * するか）、ページ側はその結果を noindex として出しているだけ。
+ * ここで同じ条件をもう一度書くと、条件を足したときに «noindex なのに
  * sitemap に載る» 食い違いが生まれる。出力を見れば食い違いようがない。
  *
  * ここで frontmatter を読み直さないのには別の理由もある。astro.config.mjs は
@@ -40,7 +40,18 @@ import sitemap from '@astrojs/sitemap';
  * 失敗して設定の読み込みごと落ちる（実際に落ちた）。
  *
  * @astrojs/sitemap の filter は astro:build:done、つまり全ページを
- * 書き出した後に呼ばれるので、この時点で dist の HTML は揃っている
+ * 書き出した後に呼ばれるので、この時点で dist の HTML は揃っている。
+ *
+ * この «出力を読む» 作りのせいで、integrations の並びに制約がある。
+ * astro:build:done で dist の HTML を «後加工する» インテグレーションを
+ * 下の sitemap() より «後ろ» に足さないこと。Astro は build:done を
+ * integrations の登録順に呼ぶので、後ろに置いたものが noindex の meta を
+ * 足したり消したりしても、sitemap はもう判定を終えている。
+ * 現在 build:done を持つのは src/integrations/public-notion-copier.ts だけで
+ * （実測、src 配下の build:done は 1 件）、書き込み先が dist/notion 配下に
+ * 閉じている＝ページの HTML を触らないので、sitemap() より前にある今の
+ * 並びでも後ろでも結果は変わらない。無害なのは «たまたま» ではなく
+ * 書き込み範囲が閉じているからで、そこが変わったら並びも見直すこと
  */
 // outDir は下の defineConfig で指定していない＝既定の ./dist。
 // もし outDir を変えるなら、ここも合わせること
@@ -57,7 +68,13 @@ const hasNoindexMeta = (filePath) => {
     fd = fs.openSync(filePath, 'r');
     const buffer = Buffer.alloc(HEAD_BYTES);
     const read = fs.readSync(fd, buffer, 0, HEAD_BYTES, 0);
-    return /<meta[^>]+name="robots"[^>]+content="noindex"/.test(
+    // content の «一部に» noindex があれば拾う。以前は content="noindex" と
+    // 完全一致で見ていたが、それは src/components/SiteHead.astro が今ちょうど
+    // その 1 語だけを出しているから通っていただけで、'noindex, follow' のような
+    // «robots の書式として普通の» 追記をした瞬間にどのページもマッチしなくなり、
+    // 183 ページが無言で sitemap に戻る（ビルドも lint も通ってしまう）。
+    // SiteHead.astro 側の meta の直前にも、この正規表現の存在を注記してある
+    return /<meta[^>]+name="robots"[^>]+content="[^"]*noindex/.test(
       buffer.toString('utf8', 0, read)
     );
   } catch {

@@ -3,14 +3,14 @@ import type { ArchivePostRef } from '../../lib/archive-taxonomy'
 import {
   archiveCategories,
   getCategoryDisplayName,
-  INDEX_MIN_POSTS,
 } from '../../lib/archive-taxonomy'
 import { getPosts, getRankedPosts, getAllTags } from '../../lib/notion/client'
-import { getNavLink, getDateStr } from '../../lib/blog-helpers'
+import { getNavLink } from '../../lib/blog-helpers'
 import Layout from '../../layouts/Layout.astro'
 import BlogPostsLink from '../../components/BlogPostsLink.astro'
 import BlogTagsLink from '../../components/BlogTagsLink.astro'
 import styles from '../../styles/blog.module.css'
+import taxonomyStyles from '../../styles/archive-taxonomy.module.css'
 
 // 旧 WordPress の /category/<slug>/ に «実ページ» を置く。
 // #92 で未マッチのパスを 404 にしたことで、移行前の被リンクと検索結果が
@@ -26,20 +26,57 @@ export async function getStaticPaths() {
   // 日本語スラッグ（水樹奈々・茅原実里・田村ゆかり・伊藤かな恵・東山奈央）が
   // params を経由すると URL エンコードの往復が挟まり、Map のキーと
   // 一致する保証が無くなる。ここで組にしておけば往復自体が起きない
-  return [...archiveCategories.entries()].map(([category, posts]) => ({
+  return [...archiveCategories.entries()].map(([category, taxonomy]) => ({
     params: { category },
-    props: { posts },
+    props: { posts: taxonomy.posts, indexable: taxonomy.indexable },
   }))
 }
 
 export interface Props {
   posts: ArchivePostRef[]
+  // 「検索エンジンに載せるか」は src/lib/archive-taxonomy.ts が決めた結果を
+  // 受け取るだけにする。判断の条件は «記事数» と «記事集合が他のタクソノミーと
+  // 完全一致しないこと» の 2 つあり、ここに書き写すとカテゴリー側とタグ側で
+  // 条件がずれる
+  indexable: boolean
 }
 
 const { category } = Astro.params
-const { posts } = Astro.props
+const { posts, indexable } = Astro.props
+
+/*
+ * indexable が false のとき、noindex と noAds を «両方» 渡す。
+ *
+ * Google Publisher Policies の Inventory value には
+ * "Google-served ads on screens without publisher-content" という項目があり、
+ * publisher-content の無い画面に加えて "with low-value content" の画面と
+ * "used for alerts/navigation" の画面への広告配信も禁じている。
+ * index 対象でないタクソノミーページは «記事リンクが 1〜2 本あるだけ» で、
+ * まさに low-value content かつ navigation にあたる。実測で
+ * dist/category/pc-web/index.html には adsbygoogle が 1 件入っていた。
+ * 違反はそのページの配信停止にとどまらず、繰り返せばアカウント単位の措置。
+ *
+ * SiteHead.astro 側で noindex から noAds を導かないのは、2 つが別の判断で
+ * あることを壊さないため（404 ページは URL が実在しないから noindex で、
+ * 行き止まりだから noAds）。ここは «同じ判断から両方が出ている» ので、
+ * ページ側で 2 つとも渡す形にしてある。
+ *
+ * 逆に index 対象のページ（カテゴリー 26 / タグ 86）では広告を出したままに
+ * する。判断が割れるのは、同じ «記事へのリンクが並ぶだけのページ» である
+ * /archive/（リンク 609 本）と /posts/page/N が元から広告を出しているから。
+ * そちらに手を入れるかどうかは本 PR の範囲外で、ここだけ先に消すと
+ * 「同種のページで扱いが違う」状態を新しく作ることになる。
+ * 薄いページを止めるのが目的なので、薄い側だけを止める
+ */
 
 const displayName = getCategoryDisplayName(category ?? '')
+
+// 日付は frontmatter の post.date をそのまま出す。getDateStr() を通していたが、
+// これは new Date() → getFullYear/getMonth/getDate の «ローカル時刻» を経由する。
+// アーカイブ 609 件の date は実測で «すべて 'YYYY-MM-DD'»（時刻もタイムゾーンも
+// 持たない）＝ UTC 0 時として解釈されるため、UTC より西のタイムゾーンで
+// ビルドすると 1 日戻り、datetime 属性（post.date）と表示テキストが食い違う。
+// 変換して元に戻すだけの往復なので、素通しにする
 
 // <title> と description はページごとに書き分ける。サイト共通の説明文を
 // 27 ページで使い回すと、検索エンジンからはどれも同じページに見える
@@ -59,16 +96,17 @@ const [rankedPosts, tags, recentPosts] = await Promise.all([
   title={title}
   description={description}
   path={`/category/${category}`}
-  noindex={posts.length < INDEX_MIN_POSTS}
+  noindex={!indexable}
+  noAds={!indexable}
 >
   <div slot="main" class={styles.main}>
     <h2>{title}</h2>
     <p>{description}</p>
-    <ul class="entries">
+    <ul class={taxonomyStyles.entries}>
       {
         posts.map((post) => (
           <li>
-            <time datetime={post.date}>{getDateStr(post.date)}</time>
+            <time datetime={post.date}>{post.date}</time>
             <a href={getNavLink(post.url)}>{post.title}</a>
           </li>
         ))
@@ -82,20 +120,3 @@ const [rankedPosts, tags, recentPosts] = await Promise.all([
     <BlogTagsLink heading="カテゴリー" tags={tags} />
   </div>
 </Layout>
-
-<style>
-  ul.entries {
-    padding-left: 1.2rem;
-  }
-  ul.entries li {
-    margin-bottom: 0.4rem;
-  }
-  ul.entries time {
-    margin-right: 0.6rem;
-    color: #777;
-    font-size: 0.85rem;
-    /* 日付の桁で折り返さないようにする。95 件並ぶページで
-       「2014-10-」と「04」が別行になると一覧として読めない */
-    white-space: nowrap;
-  }
-</style>

@@ -41,20 +41,29 @@ export interface ArchivePostRef {
 /**
  * このタクソノミーを検索エンジンに載せるかどうかの境目（記事数）。
  *
- * タグ 271 種の内訳は 1 本だけ = 130 種、2 本 = 52 種、3 本以上 = 89 種で、
- * 3 本未満の 182 種は「アーカイブ記事 1 件へのリンクが 1 本あるだけの
+ * «3 は Google が公表している基準ではない»。このサイトのタグ 271 種の
+ * 分布（1 本だけ = 130 種、2 本 = 51 種、3 本以上 = 90 種）を数えて、
+ * 「ほとんど中身の無いページ」と「一覧として読めるページ」が分かれる
+ * ところに引いた線でしかない。外部に根拠があるわけではないので、
+ * 分布が変われば引き直してよい。
+ *
+ * 3 本未満の 181 種は「アーカイブ記事 1〜2 件へのリンクがあるだけの
  * ページ」になる。その記事自身のページと中身がほぼ変わらず、
- * 検索エンジンから見れば薄いページを 182 枚増やすことになる。
+ * 検索エンジンから見れば薄いページを 181 枚増やすことになる。
  * それでも 200 で返すのは旧 URL の被リンクを 404 にしないためなので、
  * 「配信はするがインデックスはさせない」に倒す。
  *
  * カテゴリー 27 種でこの境目を下回るのは pc-web（1 本）だけ。
  *
- * 値をここに置いているのは、/category/[category]・/tag/[tag] の noindex と
- * astro.config.mjs の sitemap 除外が «同じ判断» だから。別々に持つと
- * 「noindex なのに sitemap に載っている」という矛盾が起きる
+ * export していないのは、この値を «直接» 見てよいのが下の
+ * selectIndexableKeys だけだから。ページ側は archiveCategories /
+ * archiveTags の indexable を受け取る。閾値の比較をページに書き戻すと、
+ * 判断がもう 1 種類ある（記事集合の重複）ことを取りこぼす。
+ * astro.config.mjs の sitemap 除外も同じ判断だが、あちらは閾値ではなく
+ * «出来上がった HTML に noindex が入っているか» を見ていて、
+ * 条件を二重に持たないようにしてある
  */
-export const INDEX_MIN_POSTS = 3
+const INDEX_MIN_POSTS = 3
 
 /**
  * カテゴリーのスラッグ → 画面に出す表示名。
@@ -70,7 +79,7 @@ export const INDEX_MIN_POSTS = 3
  * 確認できるようにするため。
  *
  * タグ 271 種には同じ表を作らない。手で維持する行が 271 行に増える割に、
- * 182 種は記事 2 本以下の noindex ページで人目に触れない
+ * 181 種は記事 2 本以下の noindex ページで人目に触れない
  */
 const CATEGORY_DISPLAY_NAMES: Record<string, string> = {
   'camera-lens': 'カメラ・レンズ',
@@ -170,14 +179,102 @@ const groupBy = (
   return groups
 }
 
+const categoryPosts = groupBy('categories')
+const tagPosts = groupBy('tags')
+
 /**
- * カテゴリー名 → その記事一覧（日付の新しい順）。実測 27 種・のべ 746 件。
+ * 1 つのタクソノミーページ分のデータ。
+ *
+ * indexable をここに持たせているのは、「検索エンジンに載せるかどうか」の
+ * 判断がもう 1 種類増えた（下の selectIndexableKeys 参照）ため。
+ * 以前はページ側が posts.length < INDEX_MIN_POSTS を書いていたが、
+ * 判断が 2 種類になった時点で «片方のページにだけ新しい条件を足し忘れる»
+ * 事故が起きる形になる。条件はすべてこのファイルに閉じ込め、ページは
+ * 出てきた真偽値をそのまま noindex / noAds に渡すだけにする
+ */
+export interface ArchiveTaxonomy {
+  /** この分類に属する記事（日付の新しい順） */
+  posts: ArchivePostRef[]
+  /** 検索エンジンに載せる（＝ noindex を出さず sitemap に載せる）かどうか */
+  indexable: boolean
+}
+
+/**
+ * index 対象にするタクソノミーの識別子（'category/gadget' の形）を選ぶ。
+ *
+ * 条件は 2 つ。
+ *
+ * 1. 記事が INDEX_MIN_POSTS 件以上あること。
+ *
+ * 2. «記事集合がまったく同じ» タクソノミーが他にもあるとき、その中の
+ *    1 つだけを残すこと。実測で 4 組ある（記事数は順に 4 / 5 / 3 / 3 件）:
+ *      category/kindle ≡ tag/kindle-paperwhite
+ *      tag/pentax      ≡ tag/pentax-k-3
+ *      tag/epson       ≡ tag/moverio-bt-200av
+ *      tag/irobot      ≡ tag/ルンバ980
+ *    どちらを開いても «一字一句同じ記事リンクが並ぶページ» で、Google から
+ *    見れば重複コンテンツそのもの。INDEX_MIN_POSTS は件数しか見ないので
+ *    この 4 組は素通りしてしまう。
+ *
+ * 残す 1 つは「カテゴリー → タグ、同種ならスラッグ昇順」で決める。この順は
+ * ビルドのたびに同じ結果を出すためのもので、意味づけは後付けだが、
+ * 実測の 4 組では «より一般的な名前» が残る（kindle / pentax / epson /
+ * irobot が残り、kindle-paperwhite / pentax-k-3 / moverio-bt-200av /
+ * ルンバ980 が落ちる）。製品名より分類名のほうがカテゴリーに置かれやすく、
+ * 同系統のタグではスラッグが短い＝上位概念のほうが辞書順で先に来るため、
+ * 偶然ではなくこの規則から出てくる望ましい側。
+ * 逆の結果になったら、規則ではなくこのコメントを疑うこと
+ */
+const selectIndexableKeys = (): ReadonlySet<string> => {
+  const byName = (a: string, b: string) => a.localeCompare(b)
+  const candidates = [
+    ...[...categoryPosts.keys()].sort(byName).map((name) => ({
+      key: `category/${name}`,
+      posts: categoryPosts.get(name)!,
+    })),
+    ...[...tagPosts.keys()]
+      .sort(byName)
+      .map((name) => ({ key: `tag/${name}`, posts: tagPosts.get(name)! })),
+  ].filter(({ posts }) => posts.length >= INDEX_MIN_POSTS)
+
+  const seenSignatures = new Set<string>()
+  const indexable = new Set<string>()
+  for (const { key, posts } of candidates) {
+    // classifiedPosts を 1 回だけ並べ替えてから配り、groupBy がその順序を
+    // 崩さないので、同じ記事集合なら url の並びまで必ず一致する。
+    // ここで sort し直さないのはそのため（同じ集合なのに署名が違う、
+    // という取りこぼしは起きない）
+    const signature = JSON.stringify(posts.map((post) => post.url))
+    if (seenSignatures.has(signature)) {
+      continue
+    }
+    seenSignatures.add(signature)
+    indexable.add(key)
+  }
+  return indexable
+}
+
+const indexableKeys = selectIndexableKeys()
+
+const toTaxonomyMap = (
+  kind: 'category' | 'tag',
+  groups: ReadonlyMap<string, ArchivePostRef[]>
+): ReadonlyMap<string, ArchiveTaxonomy> =>
+  new Map(
+    [...groups].map(([name, posts]) => [
+      name,
+      { posts, indexable: indexableKeys.has(`${kind}/${name}`) },
+    ])
+  )
+
+/**
+ * カテゴリー名 → そのページのデータ。実測 27 種・のべ 746 件。
  *
  * モジュール読み込み時に 1 回だけ組み立てる。getStaticPaths と各ページの
  * 本体から合わせて 300 回近く参照されるため、呼ぶたびに 609 件を
  * 走査し直すのは無駄
  */
-export const archiveCategories = groupBy('categories')
+export const archiveCategories = toTaxonomyMap('category', categoryPosts)
 
-/** タグ名 → その記事一覧（日付の新しい順）。実測 271 種 */
-export const archiveTags = groupBy('tags')
+/** タグ名 → そのページのデータ。実測 271 種 */
+export const archiveTags = toTaxonomyMap('tag', tagPosts)

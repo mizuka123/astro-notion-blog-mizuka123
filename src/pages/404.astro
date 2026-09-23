@@ -12,7 +12,13 @@ import styles from '../styles/blog.module.css'
 // 存在しない URL がすべてトップの重複としてインデックスされうる。
 // dist/404.html があれば Pages がそれを 404 ステータスで返す。
 //
-// 読者の行き止まりにしないよう、サイドバーは他のページと同じものを出す
+// 読者の行き止まりにしないよう、サイドバーは他のページと同じものを出す。
+//
+// noindex / noCanonical / noAds を 3 つとも渡すのはこのページだけ。それぞれ
+// 理由が違う: 検索結果に出す意味が無い（noindex）、どの URL で配信されるか
+// 決まっていないので「この URL が正規」と名乗れない（noCanonical）、
+// 行き止まりの画面への広告配信が Google Publisher Policies に触れる（noAds）。
+// /category/ と /tag/ の薄いページは URL が実在するので noCanonical は渡さない
 const [rankedPosts, tags, recentPosts] = await Promise.all([
   getRankedPosts(),
   getAllTags(),
@@ -25,6 +31,7 @@ const [rankedPosts, tags, recentPosts] = await Promise.all([
   description="お探しのページは見つかりませんでした。"
   path="/404"
   noindex
+  noCanonical
   noAds
 >
   <div slot="main" class={styles.main}>

@@ -7,6 +7,7 @@ import {
 } from '../../lib/notion/client'
 import {
   archiveCategories,
+  archiveTags,
   getCategoryDisplayName,
 } from '../../lib/archive-taxonomy'
 import { getNavLink, stripBasePath } from '../../lib/blog-helpers'
@@ -14,6 +15,7 @@ import Layout from '../../layouts/Layout.astro'
 import BlogPostsLink from '../../components/BlogPostsLink.astro'
 import BlogTagsLink from '../../components/BlogTagsLink.astro'
 import styles from '../../styles/blog.module.css'
+import taxonomyStyles from '../../styles/archive-taxonomy.module.css'
 
 interface ArchiveFrontmatter {
   title: string
@@ -53,18 +55,26 @@ const sortedPosts = nonDraftPosts.sort((a, b) => {
 // このページの導線は «609 本の平坦なリンク» だけで、読者が目当ての分野に
 // たどり着く手段が無かった。カテゴリー 27 件を先頭に置いて入口を作る。
 // タグは 271 種あり、ここに並べると本来の記事一覧が画面外に押し出される
-// ので置かない（うち 182 種は記事 2 本以下）。
+// ので、下の indexableTagCount のリンク 1 本だけを置いて /tag/ に送る。
 //
 // 並びは記事数の多い順。スラッグ順（accessory が先頭）だと 1 本しか
 // 無い pc-web と 95 本の camera-lens が同じ重みで並ぶ。
 // 同数のときはスラッグ順にして、ビルドごとに入れ替わらないようにする
 const categoryLinks = [...archiveCategories.entries()]
-  .map(([slug, posts]) => ({
+  .map(([slug, taxonomy]) => ({
     slug,
     name: getCategoryDisplayName(slug),
-    count: posts.length,
+    count: taxonomy.posts.length,
   }))
   .sort((a, b) => b.count - a.count || a.slug.localeCompare(b.slug))
+
+// タグページ 271 枚は、この行が無いとサイト内のどこからもリンクされない
+// 孤立ページになる（実測: dist 全 941 ページで href="/tag/ は 0 件）。
+// ここに 271 件を展開すると本来の記事一覧が画面外に出るので、
+// 入口だけを 1 本置いて、その先の /tag/ に index 対象のタグを並べる
+const indexableTagCount = [...archiveTags.values()].filter(
+  (taxonomy) => taxonomy.indexable
+).length
 ---
 
 <Layout
@@ -73,18 +83,39 @@ const categoryLinks = [...archiveCategories.entries()]
 >
   <div slot="main" class={styles.main}>
     <h2>カテゴリーから探す</h2>
-    <ul class="categories">
+    <ul class={taxonomyStyles.taxonomyLinks}>
       {
         categoryLinks.map((category) => (
           <li>
-            <a href={getNavLink(`/category/${category.slug}`)}>
+            {/*
+              件数を隣に置くだけでは、読み上げで「ガジェット 61」としか
+              伝わらない。aria-label でリンク自身に「何の 61 なのか」を
+              持たせ、見た目の数字は aria-hidden で二重読みを防ぐ
+            */}
+            <a
+              href={getNavLink(`/category/${category.slug}`)}
+              aria-label={`${category.name} の記事一覧（${category.count} 件）`}
+            >
               {category.name}
             </a>
-            <span class="count">{category.count}</span>
+            <span class={taxonomyStyles.count} aria-hidden="true">
+              {category.count}
+            </span>
           </li>
         ))
       }
     </ul>
+    <p class="tag-index">
+      <a
+        href={getNavLink('/tag')}
+        aria-label={`タグから探す（${indexableTagCount} 件）`}
+      >
+        タグから探す
+      </a>
+      <span class={taxonomyStyles.count} aria-hidden="true">
+        {indexableTagCount}
+      </span>
+    </p>
 
     <h2>すべての記事</h2>
     {
@@ -106,22 +137,9 @@ const categoryLinks = [...archiveCategories.entries()]
 </Layout>
 
 <style>
-  /* 27 件を縦に積むと、その下の記事一覧 609 件が完全に画面外へ出る。
-     横に流して数行に収める */
-  ul.categories {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.4rem 0.9rem;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-  ul.categories li {
-    white-space: nowrap;
-  }
-  ul.categories span.count {
-    margin-left: 0.2rem;
-    color: #777;
-    font-size: 0.8rem;
+  /* 横並びの見た目そのものは src/styles/archive-taxonomy.module.css に
+     置いて /tag/ と共有している。ここはこのページ固有の間隔だけ */
+  p.tag-index {
+    margin: 0.6rem 0 0;
   }
 </style>

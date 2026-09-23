@@ -19,8 +19,12 @@ export interface Props {
   description?: string
   path?: string
   ogImage?: string
-  // 404 ページ用。SiteHead に素通しする（canonical を出さず noindex にする）
+  // robots に noindex を出す。SiteHead に素通しする。
+  // canonical と og:url は落とさない（それは下の noCanonical の役目）
   noindex?: boolean
+  // canonical と og:url を出さない。SiteHead に素通しする。
+  // URL が固定されない 404 ページ用で、渡しているのは src/pages/404.astro だけ
+  noCanonical?: boolean
   // 広告とアフィリエイトのスクリプトを出さない。SiteHead に素通しする
   noAds?: boolean
   // 記事ページ（/posts/[slug]）だけが渡す公開日。SiteHead に素通しする。
@@ -40,6 +44,7 @@ const {
   path = '/',
   ogImage = '',
   noindex = false,
+  noCanonical = false,
   noAds = false,
   articleDate = '',
 } = Astro.props
@@ -58,6 +63,7 @@ const { coverImageURL, customIconURL } = getDatabaseImageURLs(database)
       path={path}
       ogImage={ogImage}
       noindex={noindex}
+      noCanonical={noCanonical}
       noAds={noAds}
       articleDate={articleDate}
     />

@@ -1,0 +1,54 @@
+/*
+ * /category/<slug>/ ・/tag/<slug>/ ・/tag/ ・/archive/ が共有する見た目。
+ *
+ * 以前は同じ内容を各ページの <style> に写していて、「scoped style なので
+ * 共有できず」というコメントが付いていたが、これは誤り。scoped にこだわる
+ * 必要があるのは Layout.astro のように «素の要素セレクタ» を書く場合で、
+ * ここはすべてクラス起点なので CSS module に出せる。CSS module ならクラス名
+ * 自体がハッシュ化されて衝突しないので、適用範囲は scoped と変わらない。
+ * src/styles/blog.module.css（.main / .aside）と同じ形。
+ */
+
+/* タクソノミーページの記事一覧 */
+.entries {
+  padding-left: 1.2rem;
+}
+.entries li {
+  margin-bottom: 0.4rem;
+}
+.entries time {
+  margin-right: 0.6rem;
+  color: #777;
+  font-size: 0.85rem;
+  /* 日付の桁で折り返さないようにする。95 件並ぶページで
+     「2014-10-」と「04」が別行になると一覧として読めない */
+  white-space: nowrap;
+}
+
+/*
+ * /archive/ のカテゴリー導線と /tag/ のタグ一覧。
+ * 縦に積むと本文が画面外へ押し出されるので、横に流して数行に収める
+ */
+.taxonomyLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.9rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.taxonomyLinks li {
+  white-space: nowrap;
+}
+
+/*
+ * リンクに添える件数。.taxonomyLinks の中に入れ子にしていないのは、
+ * /archive/ の「タグから探す」だけが <ul> の外（<p>）にあるため。
+ * クラス名は CSS module がハッシュ化するので、単独で書いても
+ * このファイルを import したページ以外には効かない
+ */
+.count {
+  margin-left: 0.2rem;
+  color: #777;
+  font-size: 0.8rem;
+}
