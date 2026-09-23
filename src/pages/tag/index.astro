@@ -36,7 +36,11 @@ const tagLinks = [...archiveTags.entries()]
 // title と description はページ固有にする（/posts/ 配下でサイト共通の
 // 説明文を使い回して困った #99 と同じ）
 const title = 'タグから探す'
-const description = `アーカイブ記事に付けたタグのうち、記事が 3 件以上ある ${tagLinks.length} 件の一覧です。`
+// 「記事が 3 件以上ある 86 件」とは書けない。3 件以上のタグは 90 件あり、
+// そのうち 4 件は他のタグと記事の顔ぶれが完全に同じなので外してある
+// （src/lib/archive-taxonomy.ts の indexable の判定）。件数の根拠を
+// 取り違えた説明文をサイトに出さないため、条件を両方書く
+const description = `アーカイブ記事をタグから辿る一覧です。記事が 3 件以上あり、他のタグと記事の顔ぶれが重ならない ${tagLinks.length} 件を載せています。`
 
 const [rankedPosts, tags, recentPosts] = await Promise.all([
   getRankedPosts(),
