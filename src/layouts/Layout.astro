@@ -34,6 +34,9 @@ export interface Props {
   // 記事用の JSON-LD の image。SiteHead に素通しする。
   // 空なら JSON-LD に image を出さない（共通画像には落とさない）
   articleImage?: string
+  // KaTeX の CSS を読み込む。SiteHead に素通しする。
+  // 本文に数式がある Notion 記事（/posts/[slug]）だけが渡す
+  katexCss?: boolean
 }
 
 // path のデフォルトは '/'（トップページ）。省略するとそのページの canonical と
@@ -51,6 +54,7 @@ const {
   noAds = false,
   articleDate = '',
   articleImage = '',
+  katexCss = false,
 } = Astro.props
 
 const database = await getDatabase()
@@ -87,6 +91,7 @@ const SiteTitleTag = path === '/' ? 'h1' : 'p'
       noAds={noAds}
       articleDate={articleDate}
       articleImage={articleImage}
+      katexCss={katexCss}
     />
   </head>
   <body>
