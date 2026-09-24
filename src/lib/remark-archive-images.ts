@@ -28,11 +28,13 @@ import { archiveImageName } from './archive-image-file'
 // なので、構文木からは取れない。
 // 属性値の引用符は "..." / '...' / 無し のいずれも受ける。
 // 実測では html ノードの中の <img> は 609 記事で 19 個あり、
-// /archive/images/ を指すものは 0 個（外部の計測画像が 6 個、相対パスの
+// 原文で /archive/images/ を指すものは 0 個（外部の計測画像が 6 個、相対パスの
 // images/... が 13 個で、うち 12 個は Amazon の 160px サムネイル）。
-// 相対パスは記事の URL（/archive/<slug>/）から解決すると
-// /archive/images/ を指さないので対象にしない。
-// 今は 0 個でも、記事が増えたときに取りこぼさないよう拾っておく
+// 相対パスの 13 個は、先に走る remark-archive-relative-images.ts が
+// /archive/images/... に書き換えるので、ここでは本文の画像として拾われる
+// （13 個とも幅 160px 以下・25,600 画素以下で、archive-og-image.ts の
+// MIN_WIDTH 600px にも MIN_JSON_LD_PIXELS 50,000 にも届かないため、
+// og:image にも JSON-LD の image にも選ばれない）
 const IMG_SRC =
   /<img\b[^>]*?\ssrc\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/gi
 
