@@ -10,7 +10,7 @@ import { getStaticFilePath } from '../lib/blog-helpers'
 //
 // ただし «バンドルに入るので各ページには載らない» わけではない。実測では
 // このスクリプトは _astro/ の js に出ておらず、minify された状態で
-// 全 942 ページの HTML に直接埋め込まれている（1 ページ 3,049 バイト）。
+// 全 942 ページの HTML に直接埋め込まれている（1 ページ 3,088 バイト）。
 // ここを 1 行増やすと 942 倍の費用になることに注意
 const searchIndexPath = getStaticFilePath('/search-index.json')
 ---
@@ -126,10 +126,6 @@ const searchIndexPath = getStaticFilePath('/search-index.json')
     // 一覧は縦に並ぶだけで 20 件より下はどのみちスクロールしないと見えない
     const MAX_RESULTS = 20
 
-    // 押しただけでは入力欄の文字が変わらないキー（handleKeydown() で使う）。
-    // AltGraph は Windows で AltGr を押したときに届く
-    const MODIFIER_KEYS = ['Control', 'Shift', 'Alt', 'AltGraph', 'Meta']
-
     // 検索の照合に使う «畳んだ» 文字列を作る。
     //
     // 素の includes() は大文字小文字を区別するため、632 件のうち
@@ -228,25 +224,46 @@ const searchIndexPath = getStaticFilePath('/search-index.json')
       } else if (event.keyCode === 40) {
         // Down
         selectDown(event)
-      } else if (
-        !MODIFIER_KEYS.includes(event.key) &&
-        !(event.keyCode === 75 && (event.ctrlKey || event.metaKey))
-      ) {
-        // 修飾キー単独の押下と、検索を開くショートカット（Ctrl+K / Cmd+K）
-        // では描き直さない。
-        //
-        // searchAndRender() は結果を作り直して先頭を選び直すので、↑↓ で
-        // 2 件目以降を選んだ後に Ctrl や Shift を押しただけで選択位置が
-        // 先頭に戻っていた。開いている状態での Ctrl+K も同じ経路で戻る
-        // （SearchButton.astro 側は開いていれば click() しないが、この
-        // ハンドラも同じ keydown を受けるため、ここでも除く必要がある）。
-        // どちらも入力欄の文字を変えないので、描き直す理由が無い。
-        //
-        // なお keydown の時点では今の打鍵の文字はまだ入力欄に入っていないので、
-        // 描画は «1 打鍵前の文字列» で行われている。修飾キーで描き直すと
-        // その遅れがたまたま追いついていたが、それは次の文字キーでも追いつく
-        searchAndRender()
       }
+      // 文字の入力による再検索はここではなく入力欄の input イベントで行う
+      // （下の addEventListener の説明を参照）
+    }
+
+    // 入力欄の input イベントで検索する。
+    //
+    // 以前は上の handleKeydown() で文字キーのたびに searchAndRender() を
+    // 呼んでいたが、keydown は文字が入力欄に入る «前» に発火するので、
+    // 結果が常に 1 打鍵遅れていた（iphone → iphonez で 14 件のまま、
+    // Backspace で iphone に戻すと 0 件）。貼り付け・切り取り・IME の確定の
+    // ように keydown を伴わない、または keydown の時点で値が決まらない変更は
+    // 反映すらされなかった。input は値が変わった «後» に、変わったときだけ
+    // 届くので、修飾キー単独や Ctrl+K で選択位置が先頭に戻る問題も
+    // 条件を書かずに起きない。
+    //
+    // IME の変換中（isComposing）は検索しない。変換中の入力欄には «れびゅー»
+    // や «iphon» のような未確定の文字列が入っていて、打つたびに結果が
+    // 0 件と数件の間でちらつき、↑↓ の選択も先頭に戻される。その代わり
+    // compositionend でも検索する。確定時の順序はブラウザで違い、
+    // 仕様どおりの Chrome などは «input（isComposing: true）→ compositionend»、
+    // Safari は «compositionend → input（isComposing: false）» になる。
+    // 前者は input を捨てるので compositionend が要り、後者は両方で検索が
+    // 走るが同じ値で描き直すだけなので害は無い。
+    //
+    // モーダルが閉じている間はこの入力欄は display:none でフォーカスも
+    // 打鍵も受けないので、handleKeydown() のような開閉のガードは要らない
+    //
+    // as InputEvent は型のためだけのもの。lib.dom は input イベントを
+    // Event として型付けしているので、そのままでは isComposing が読めない
+    const searchInput = document.querySelector<HTMLInputElement>(
+      '.search-prompt input'
+    )
+    if (searchInput) {
+      searchInput.addEventListener('input', (event) => {
+        if (!(event as InputEvent).isComposing) {
+          searchAndRender()
+        }
+      })
+      searchInput.addEventListener('compositionend', searchAndRender)
     }
 
     function select() {
