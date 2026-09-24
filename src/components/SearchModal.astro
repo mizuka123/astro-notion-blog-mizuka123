@@ -10,7 +10,7 @@ import { getStaticFilePath } from '../lib/blog-helpers'
 //
 // ただし «バンドルに入るので各ページには載らない» わけではない。実測では
 // このスクリプトは _astro/ の js に出ておらず、minify された状態で
-// 全 942 ページの HTML に直接埋め込まれている（1 ページ 3,102 バイト）。
+// 全 942 ページの HTML に直接埋め込まれている（1 ページ 3,265 バイト）。
 // ここを 1 行増やすと 942 倍の費用になることに注意
 const searchIndexPath = getStaticFilePath('/search-index.json')
 ---
@@ -23,6 +23,7 @@ const searchIndexPath = getStaticFilePath('/search-index.json')
       <input type="text" placeholder="Search..." />
     </div>
     <div class="search-result">
+      <p class="search-status" role="status" aria-live="polite"></p>
       <ul>
         <li class="selected">
           <a href="#">
@@ -83,6 +84,20 @@ const searchIndexPath = getStaticFilePath('/search-index.json')
   div.search-result {
     border-top: 1px solid var(--hr-border);
   }
+  /* 件数と «該当なし» の表示（#108）。
+     ライブリージョンは内容が変わる前から DOM にないと、変化を読み上げ
+     ない実装があるので、script で作らずマークアップに静的に置く。
+     role="status" は暗黙で polite だが、display:none から表示された
+     コンテナの中のリージョンを拾わない読み上げソフトへの保険として
+     aria-live も明示している。
+     空のときも display:none にはしない。隠したリージョンは読み上げが
+     落ちる実装がある。左の余白は ul の margin 0.3rem と a の padding
+     0.6rem の和で、結果のタイトルと頭を揃えている */
+  div.search-result p.search-status {
+    margin: 0.3rem 0.9rem 0;
+    color: var(--fg);
+    font-size: 0.8rem;
+  }
   div.search-result ul {
     list-style: none;
     margin: 0.3rem;
@@ -126,7 +141,13 @@ const searchIndexPath = getStaticFilePath('/search-index.json')
     // 空欄で開いたときや「の」のような頻出文字を打ったときに全件が
     // <li> になる。以前は最大 23 件だったので上限が要らなかっただけで、
     // 632 件を毎キーストロークで作り直すのは無駄でしかない。
-    // 一覧は縦に並ぶだけで 20 件より下はどのみちスクロールしないと見えない
+    // 一覧は縦に並ぶだけで、20 件より下はどのみちスクロールしないと
+    // 見えない。削った分があることは件数表示（«632 件中 20 件を表示»）で
+    // 伝わるので、読者は語を足して絞り込める
+    //
+    // 以前は件数を出しておらず、上限で黙って打ち切っていた。21 件目以降が
+    // あることも、何も出ないのが «該当なし» だからなのかも分からなかった
+    // （#108）。件数と «該当なし» は renderResults() が書く
     const MAX_RESULTS = 20
 
     // 検索の照合に使う «畳んだ» 文字列を作る。
@@ -408,6 +429,22 @@ const searchIndexPath = getStaticFilePath('/search-index.json')
     function renderResults(results) {
       const ul = document.querySelector('.search-result ul')
       ul.innerHTML = ''
+
+      // 件数はここ（一覧を描く場所）で書き、描いた一覧と必ず対応させる。
+      // 0 件でも索引の取得前（fetched が false）は空にする。空の索引で
+      // «該当なし» と嘘を出さないため。取得中に打たれた語は、取得後に
+      // openModal() が renderedNeedle を忘れて描き直すので、そこで正しく出る。
+      // 取得前の結果は必ず 0 件なので、fetched を見るのは 0 件のときだけでよい
+      // ! は、要素がマークアップに静的にあって null にならないことを型に
+      // 伝えるため（付けないと astro check の «possibly null» が 1 件増える）
+      const n = results.length
+      document.querySelector('.search-status')!.textContent = n
+        ? n > MAX_RESULTS
+          ? `${n} 件中 ${MAX_RESULTS} 件を表示`
+          : `${n} 件`
+        : fetched
+          ? '該当する記事はありません'
+          : ''
 
       results.slice(0, MAX_RESULTS).forEach((item) => {
         const li = document.createElement('li')
