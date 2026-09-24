@@ -15,6 +15,7 @@ import rehypeArchiveHeadings from './src/lib/rehype-archive-headings';
 import rehypeImageDimensions from './src/lib/rehype-image-dimensions';
 import remarkArchiveDescription from './src/lib/remark-archive-description';
 import remarkArchiveImages from './src/lib/remark-archive-images';
+import remarkArchiveRelativeImages from './src/lib/remark-archive-relative-images';
 import rehypeLazyImages from './src/lib/rehype-lazy-images';
 import rehypeProductBox from './src/lib/rehype-product-box';
 import sitemap from '@astrojs/sitemap';
@@ -161,8 +162,16 @@ export default defineConfig({
     // 項目が無いため、remark 側で file.data.astro.frontmatter に書き込む。
     // remarkArchiveImages は本文のローカル画像の URL を同じ仕組みで渡し、
     // LayoutMd.astro が og:image と JSON-LD の image を選ぶのに使う。
-    // 2 つは frontmatter の別の項目を書くだけなので順序は結果に影響しない
-    remarkPlugins: [remarkArchiveDescription, remarkArchiveImages],
+    // 2 つは frontmatter の別の項目を書くだけなので順序は結果に影響しない。
+    // remarkArchiveRelativeImages は生 HTML の <img src="images/..."> を
+    // /archive/images/... に直す（#126）。remarkArchiveImages より前に置き、
+    // 直した URL を本文の画像として拾わせる。remarkArchiveDescription は
+    // html ノードを読まないので、こちらとの順序は結果に影響しない
+    remarkPlugins: [
+      remarkArchiveRelativeImages,
+      remarkArchiveDescription,
+      remarkArchiveImages,
+    ],
   },
   integrations: [
     icon(),
