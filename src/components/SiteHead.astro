@@ -51,6 +51,25 @@ export interface Props {
   // 省く方が要件に沿う。以前は (ogImage || 共通画像) を出していたので、
   // og:image が共通画像のアーカイブ記事 377 件で共通画像を申告していた
   articleImage?: string
+  // KaTeX の CSS を読み込む。本文に数式がある Notion 記事だけが渡す
+  // （[slug].astro が src/lib/notion-equation.ts の hasEquation で判定）。
+  //
+  // 以前は全ページで読み込んでいた。実測（2026-09-24）では dist の
+  // HTML 942 件すべてが katex.min.css を読み込み、KaTeX を描画している
+  // （class="katex" を含む）HTML は 0 件。PageSpeed Insights
+  // （archive/7668、モバイル）ではこの CSS が «レンダリングをブロックして
+  // いるリクエスト» として 750 ms を占めていた。
+  //
+  // 数式を描画するコンポーネント（Equation.astro / RichText.astro）の側に
+  // <link> を置く方法は採らなかった。コンポーネントの中の生の <link> は
+  // <head> に移されず、描画された位置（<body> の中）にそのまま出るうえ、
+  // 数式 1 つにつき 1 本ずつ重複して出る（Astro 5.1.3 で、<link> を持つ
+  // コンポーネントを 2 回置いたページをビルドして確認）。ここで <head> に
+  // 1 本だけ出す方が、読み込みの位置も回数も以前と同じに保てる。
+  //
+  // アーカイブ記事（LayoutMd.astro）、一覧ページ、404 などは渡さない。
+  // アーカイブ 609 記事は Markdown で、KaTeX を通す経路がそもそも無い
+  katexCss?: boolean
 }
 
 // このコンポーネントの利用箇所は Layout.astro と LayoutMd.astro だけで、
@@ -68,6 +87,7 @@ const {
   noAds = false,
   articleDate = '',
   articleImage = '',
+  katexCss = false,
 } = Astro.props
 
 const database = await getDatabase()
@@ -191,12 +211,16 @@ const articleJsonLdText = articleJsonLd
     <script type="application/ld+json" is:inline set:html={articleJsonLdText} />
   )
 }
-<link
-  rel="stylesheet"
-  href="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.css"
-  integrity="sha384-vKruj+a13U8yHIkAyGgK1J3ArTLzrFGBbBc0tDp4ad/EyewESeXE/Iv67Aj8gKZ0"
-  crossorigin="anonymous"
-/>
+{
+  katexCss && (
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.css"
+      integrity="sha384-vKruj+a13U8yHIkAyGgK1J3ArTLzrFGBbBc0tDp4ad/EyewESeXE/Iv67Aj8gKZ0"
+      crossorigin="anonymous"
+    />
+  )
+}
 {
   /*
     ValueCommerce LinkSwitch。ページ内の提携ショップへの素の URL を、実行時に

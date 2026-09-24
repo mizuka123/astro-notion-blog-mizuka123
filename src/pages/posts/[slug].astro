@@ -19,6 +19,7 @@ import {
   ogImageLocalPath,
 } from '../../lib/blog-helpers.ts'
 import { descriptionFromBlocks } from '../../lib/notion-description.ts'
+import { hasEquation } from '../../lib/notion-equation.ts'
 import Layout from '../../layouts/Layout.astro'
 import PostDate from '../../components/PostDate.astro'
 import PostTags from '../../components/PostTags.astro'
@@ -133,6 +134,12 @@ if (post.FeaturedImage && post.FeaturedImage.Url) {
 // （og:image は共通画像に落ちるが、記事を表さない画像を構造化データで
 // «この記事の画像» と申告しない）。実測では 23 記事すべてに
 // FeaturedImage があり、この分岐に入る記事は今は無い
+//
+// katexCss は本文に数式（数式ブロックかインライン数式）があるときだけ
+// true。判定には描画に使う blocks をそのまま渡す。別に取り直すと、
+// 判定したブロックと描画するブロックがずれて «数式があるのに CSS が無い»
+// 隙ができる。実測（2026-09-24）では Notion 記事 23 件に数式は無く、
+// 今は全記事で false になる
 ---
 
 <Layout
@@ -142,6 +149,7 @@ if (post.FeaturedImage && post.FeaturedImage.Url) {
   ogImage={ogImage}
   articleImage={ogImage}
   articleDate={post.Date}
+  katexCss={hasEquation(blocks)}
 >
   <div slot="main" class={styles.main}>
     <div class={styles.post}>
