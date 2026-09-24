@@ -10,7 +10,7 @@ import { getStaticFilePath } from '../lib/blog-helpers'
 //
 // ただし «バンドルに入るので各ページには載らない» わけではない。実測では
 // このスクリプトは _astro/ の js に出ておらず、minify された状態で
-// 全 942 ページの HTML に直接埋め込まれている（1 ページ 3,088 バイト）。
+// 全 942 ページの HTML に直接埋め込まれている（1 ページ 3,102 バイト）。
 // ここを 1 行増やすと 942 倍の費用になることに注意
 const searchIndexPath = getStaticFilePath('/search-index.json')
 ---
@@ -118,6 +118,9 @@ const searchIndexPath = getStaticFilePath('/search-index.json')
   document.addEventListener('DOMContentLoaded', async () => {
     let feedItems = []
     let fetched = false
+    // 最後に描画した検索語（畳んだ後のもの）。同じ語での描き直しを
+    // 省くために searchAndRender() が使う。null は «まだ何も描いていない»
+    let renderedNeedle: string | null = null
 
     // 一度に描画する上限。アーカイブ 609 件が加わって対象が 632 件になり、
     // 空欄で開いたときや「の」のような頻出文字を打ったときに全件が
@@ -176,6 +179,12 @@ const searchIndexPath = getStaticFilePath('/search-index.json')
       if (!fetched) {
         await fetchSearchIndex()
       }
+      // 開くたびに «前回の語» を忘れて、同じ語でも必ず描き直す。
+      // 初回は索引の取得中に打たれた語が «空の索引で 0 件» のまま記録されて
+      // いることがあり、忘れないと取得後のここでの描画が省かれて 0 件のまま
+      // 残る。開き直しでも、前回 ↑↓ で動かした選択を先頭に戻すという従来の
+      // 挙動を保つ
+      renderedNeedle = null
       searchAndRender()
     }
 
@@ -240,29 +249,30 @@ const searchIndexPath = getStaticFilePath('/search-index.json')
     // 届くので、修飾キー単独や Ctrl+K で選択位置が先頭に戻る問題も
     // 条件を書かずに起きない。
     //
-    // IME の変換中（isComposing）は検索しない。変換中の入力欄には «れびゅー»
-    // や «iphon» のような未確定の文字列が入っていて、打つたびに結果が
-    // 0 件と数件の間でちらつき、↑↓ の選択も先頭に戻される。その代わり
-    // compositionend でも検索する。確定時の順序はブラウザで違い、
-    // 仕様どおりの Chrome などは «input（isComposing: true）→ compositionend»、
-    // Safari は «compositionend → input（isComposing: false）» になる。
-    // 前者は input を捨てるので compositionend が要り、後者は両方で検索が
-    // 走るが同じ値で描き直すだけなので害は無い。
+    // IME の変換中（isComposing: true）の input でも検索する。
+    //
+    // Android の多くのキーボード（Gboard など）は英字の普通の打鍵もすべて
+    // composition として送り、compositionend はスペースや候補のタップ、
+    // フォーカスが外れるまで来ない（W3C input-events issue 152 の議論）。
+    // 変換中の input を捨てると、Android で iphone と打ち終えても一度も
+    // 絞り込まれない。代わりに、日本語入力の変換中は «れびゅー» のような
+    // 未確定の文字列で一時的に結果が出るが、それは受け入れる。照合は索引
+    // 632 件の文字列比較だけで軽いので、間引き（debounce）もしない。
+    //
+    // compositionend でも検索するのは、確定の時点で値が変わるのに
+    // その後の input が来ない実装への保険。確定前後のイベントの順序は
+    // 実装で違う。仕様と Chrome は «input（isComposing: true）→
+    // compositionend» で終わるが、Firefox と、WebKit bug 311717 の修正が
+    // 既定になる（2026-04）前の Safari は、確定後に isComposing: false の
+    // input がもう 1 回来る。どの順序でも、最後に届いたイベントで確定後の
+    // 値が描かれる。同じ語が何度届いても、描き直しは searchAndRender() の
+    // 側で 1 回に絞る
     //
     // モーダルが閉じている間はこの入力欄は display:none でフォーカスも
     // 打鍵も受けないので、handleKeydown() のような開閉のガードは要らない
-    //
-    // as InputEvent は型のためだけのもの。lib.dom は input イベントを
-    // Event として型付けしているので、そのままでは isComposing が読めない
-    const searchInput = document.querySelector<HTMLInputElement>(
-      '.search-prompt input'
-    )
+    const searchInput = document.querySelector('.search-prompt input')
     if (searchInput) {
-      searchInput.addEventListener('input', (event) => {
-        if (!(event as InputEvent).isComposing) {
-          searchAndRender()
-        }
-      })
+      searchInput.addEventListener('input', searchAndRender)
       searchInput.addEventListener('compositionend', searchAndRender)
     }
 
@@ -356,6 +366,23 @@ const searchIndexPath = getStaticFilePath('/search-index.json')
 
     function searchAndRender() {
       const text = document.querySelector('.search-prompt input').value.trim()
+
+      // 前回描画した語と同じなら何もしない。
+      //
+      // 変換中も検索するようにしたので、確定の前後で «同じ値» の input と
+      // compositionend が続けて届く（Firefox などでは確定後の input も
+      // 加わる）。描き直すと結果を作り直して先頭を選び直すので、↑↓ で
+      // 選んでいた位置が戻る。さらに、変換中に結果のリンクを押すと
+      // mousedown でフォーカスが外れて確定し、compositionend で ul が
+      // 作り直されて押している <a> が DOM から消え、最初のクリックが
+      // 空振りしうる。どちらも語が変わっていないので描き直す理由が無い。
+      // 比べるのは畳んだ後の語なので、大文字小文字や全角半角だけの違いでも
+      // 描き直さない（結果は同じになる）
+      const needle = foldForSearch(text)
+      if (needle === renderedNeedle) {
+        return
+      }
+      renderedNeedle = needle
 
       if (text !== '') {
         const results = search(text)
