@@ -10,7 +10,7 @@ import { getStaticFilePath } from '../lib/blog-helpers'
 //
 // ただし «バンドルに入るので各ページには載らない» わけではない。実測では
 // このスクリプトは _astro/ の js に出ておらず、minify された状態で
-// 全 942 ページの HTML に直接埋め込まれている（1 ページ 3,026 バイト）。
+// 全 942 ページの HTML に直接埋め込まれている（1 ページ 3,049 バイト）。
 // ここを 1 行増やすと 942 倍の費用になることに注意
 const searchIndexPath = getStaticFilePath('/search-index.json')
 ---
@@ -150,7 +150,28 @@ const searchIndexPath = getStaticFilePath('/search-index.json')
     // 見えていたが、今はこの中に隠れている。外すと 1 クエリが空振りする
     // だけでは済まず、索引取得時の map() の中で TypeError になって
     // モーダルごと動かなくなる
-    const foldForSearch = (text) => (text ?? '').normalize('NFKC').toLowerCase()
+    //
+    // 波ダッシュ 〜（U+301C）だけは NFKC で畳まれないので自前で ~ にする。
+    // 全角チルダ ～（U+FF5E）は NFKC で ~ になるが 〜 は変わらず、両者が
+    // 相互に当たらなかった。Windows の IME は ～、macOS は 〜 を出しがちで、
+    // 索引 632 件のタイトルにも ～ が 30 件、〜 が 2 件と両方が混ざっている。
+    // 実測でクエリ ～ / 〜 はそれぞれ 30 件 / 2 件 → どちらも 32 件になる。
+    //
+    // 同種の «見た目が同じで符号位置が違う» 文字を索引で数えた結果、
+    // 畳むのは 〜 だけにした（件数はタイトルのもの。description は 632 件
+    // すべて空かキー無しで、どの文字も 0 件）:
+    // - ∼ U+223C / ‐ U+2010 / − U+2212 / — U+2014 / ‒ U+2012 は 0 件
+    //   （－ U+FF0D も 0 件で、どのみち NFKC で - になる）
+    // - ― U+2015 は 2 件（To LOVEる―とらぶる―）あるが、対になる — は 0 件で
+    //   索引の中では揺れていない。記号のダッシュで検索する読者も想定しにくい
+    // - 長音符 ー U+30FC は 294 件あるが、これは記号ではなく語の一部。
+    //   - と同一視すると - で引いたときに レビュー のような語を含む 294 件が
+    //   混ざり、- を含む 126 件（型番など）を探せなくなるので畳まない
+    const foldForSearch = (text) =>
+      (text ?? '')
+        .normalize('NFKC')
+        .replace(/\u301C/g, '~')
+        .toLowerCase()
 
     async function openModal() {
       document.querySelector('.search-modal-container').style.display = 'block'
