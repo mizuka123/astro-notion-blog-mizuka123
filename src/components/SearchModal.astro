@@ -251,20 +251,22 @@ const searchIndexPath = getStaticFilePath('/search-index.json')
     //
     // IME の変換中（isComposing: true）の input でも検索する。
     //
-    // Android の多くのキーボード（Gboard など）は英字の普通の打鍵もすべて
-    // composition として送り、compositionend はスペースや候補のタップ、
-    // フォーカスが外れるまで来ない（W3C input-events issue 152 の議論）。
-    // 変換中の input を捨てると、Android で iphone と打ち終えても一度も
-    // 絞り込まれない。代わりに、日本語入力の変換中は «れびゅー» のような
+    // Android では英字の普通の打鍵もすべて composition を経由する
+    // （W3C input-events issue 152 の議事録: «On android every keystroke
+    // comes through composition»）。そのため compositionend は、スペースや
+    // 候補の確定、フォーカスが外れるといった «確定» の操作まで来ない
+    // （ここは議事録ではなく、そこからの推論）。変換中の input を捨てると、
+    // Android で iphone と打ち終えても一度も絞り込まれない。代わりに、日本語入力の変換中は «れびゅー» のような
     // 未確定の文字列で一時的に結果が出るが、それは受け入れる。照合は索引
     // 632 件の文字列比較だけで軽いので、間引き（debounce）もしない。
     //
     // compositionend でも検索するのは、確定の時点で値が変わるのに
     // その後の input が来ない実装への保険。確定前後のイベントの順序は
     // 実装で違う。仕様と Chrome は «input（isComposing: true）→
-    // compositionend» で終わるが、Firefox と、WebKit bug 311717 の修正が
-    // 既定になる（2026-04）前の Safari は、確定後に isComposing: false の
-    // input がもう 1 回来る。どの順序でも、最後に届いたイベントで確定後の
+    // compositionend» で終わるが、Firefox は確定後に isComposing: false の
+    // input をもう 1 回送る（Mozilla bug 2011114 で担当者が明言。これを
+    // 止める bug 1305387 は未解決）。従来の Safari でも、確定後に
+    // isComposing: false の input が来ることがある。どの順序でも、最後に届いたイベントで確定後の
     // 値が描かれる。同じ語が何度届いても、描き直しは searchAndRender() の
     // 側で 1 回に絞る
     //
