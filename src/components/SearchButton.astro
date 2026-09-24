@@ -33,10 +33,68 @@ import { Icon } from 'astro-icon/components';
 
 <script>
   document.addEventListener('DOMContentLoaded', () => {
-    function handleKeydown(event) {
-      if (event.keyCode === 75 && event.metaKey) {
-        // Ctrl+K or Cmd+K
-        document.querySelector('.open-search-modal').click()
+    function handleKeydown(event: KeyboardEvent) {
+      // Ctrl+K（Windows / Linux）と Cmd+K（macOS）で検索を開く。
+      //
+      // 以前は metaKey しか見ていなかった。Windows の metaKey は
+      // Windows キーなので、コメントに «Ctrl+K or Cmd+K» とありながら
+      // 実際に効くのは macOS の Cmd+K だけだった。
+      //
+      // Shift / Alt が一緒に押されているときは横取りしない。
+      // Ctrl+Shift+K は Firefox の Web コンソールなど、ブラウザや拡張機能が
+      // 別の意味で使っている組み合わせで、ここで奪うとそちらが効かなくなる。
+      // Alt も除くのは、Windows では AltGr が «Ctrl+Alt» として届くため。
+      // AltGr で文字を打つ配列の読者の入力を検索に化けさせないようにする。
+      //
+      // IME の変換中（isComposing）も横取りしない。変換中の打鍵は IME の
+      // ものなので、確定前の文字列を残したまま検索が開くのは意図に反する。
+      // 変換中の keyCode は多くのブラウザで 229 になり元から当たらないが、
+      // それは慣習で、変換中かどうかを表すのは isComposing なので明示しておく
+      //
+      // keyCode を使うのは SearchModal.astro の handleKeydown と揃えるため
+      if (
+        event.keyCode !== 75 ||
+        !(event.ctrlKey || event.metaKey) ||
+        event.shiftKey ||
+        event.altKey ||
+        event.isComposing
+      ) {
+        return
+      }
+
+      // この組み合わせに当たったときだけ既定動作を止める。
+      // Chrome や Firefox は Ctrl+K をアドレスバーでの検索に割り当てているので、
+      // 止めないと検索モーダルとアドレスバーが同時に動く。
+      // 逆に、ここより上で return したキーは一切止めないこと
+      // （#106 では閉じたモーダルが ↑↓ を横取りして記事のスクロールを壊した）
+      event.preventDefault()
+
+      // すでに開いているときは開き直さず、入力欄にフォーカスを戻すだけにする。
+      // click() で openModal() を再実行すると searchAndRender() が走り、
+      // ↑↓ で選んでいた位置が先頭に戻ってしまう。フォーカスを戻すのは、
+      // モーダルの余白をクリックするとフォーカスが body に落ちるため
+      // （その状態から打ち直せるようにする）。
+      //
+      // 開閉の判定は SearchModal.astro の handleKeydown と同じく
+      // インラインスタイルの display を直接読む。隠し方を変えるときは
+      // あちらと一緒にここも直すこと
+      const container = document.querySelector<HTMLElement>(
+        '.search-modal-container'
+      )
+      if (container && container.style.display === 'block') {
+        const input = document.querySelector<HTMLInputElement>(
+          '.search-prompt input'
+        )
+        if (input) {
+          input.focus()
+        }
+        return
+      }
+
+      // ボタンは自分で描画しているので通常は必ずあるが、無ければ何もしない
+      const button = document.querySelector<HTMLElement>('.open-search-modal')
+      if (button) {
+        button.click()
       }
     }
 
