@@ -27,7 +27,8 @@ const MIN_WIDTH = 600
 // 面積で足切りするだけで、300x200 でも «記事を表す画像» として受け取る
 const MIN_JSON_LD_PIXELS = 50_000
 
-// 本文から新しく選ぶ候補にだけかける条件（#103 のレビューで追加）。
+// og:image に使う画像にかける条件。#103 のレビューで本文から新しく選ぶ
+// 候補に足し、#125 で coverImage をそのまま使う分岐にも広げた。
 // 幅だけを見ると、644x54（縦横比 11.9）のような «帯» のスクリーンショットが
 // og:image に選ばれていた。SNS のカード（1.91:1）や Google の推奨比率
 // （16:9 / 4:3 / 1:1）に切り抜くと中身がほぼ残らない。
@@ -38,6 +39,8 @@ const MIN_JSON_LD_PIXELS = 50_000
 // ただし今の値の組み合わせでは、この高さの条件は «何も外していない»。
 // 幅 600px 以上かつ縦横比 3 以下なら、高さは必ず 200px 以上になる
 // （600 / 3 = 200）。実際に 644x54 を外しているのは縦横比の条件の方。
+// #125 で外れた 5195 の coverImage（600x127）も高さ 157px 未満だが、
+// 縦横比が 4.72 あり、縦横比の条件だけでも外れる。
 // 同じ理由で、og:image に選ばれた画像は必ず 600 x 200 = 120,000px 以上あり、
 // JSON-LD が og:image を引き継ぐときの 5 万 px の確認（下の isJsonLdSized）も
 // 常に通る。どちらも MIN_WIDTH や MAX_ASPECT_RATIO を将来変えたときに
@@ -113,26 +116,41 @@ const isOgSized = (size: ImageSize): boolean =>
 /**
  * アーカイブ記事の og:image と JSON-LD の image に使うパスを選ぶ。
  *
- * 1. coverImage が幅 600px 以上なら、og:image も JSON-LD もそれを使う。
- *    #82 から coverImage で決まっていた 232 件の結果を変えないため、
- *    ここには下の «共有されたファイル名» や縦横比の条件をかけない
- *    （この 232 件にも、共有ファイル名 6 件・縦横比 3 超 6 件・
- *    高さ 157px 未満 1 件（重複あり、計 9 記事）が残っている。別 Issue で扱う）
- * 2. それ以外の記事では、本文のローカル画像（出現順）と、幅 600px 未満の
- *    coverImage から «新しく» 選ぶ。どれも、2 記事以上から参照されている
- *    ファイル名（archive-shared-images.ts）と、縦横比 3 超のものは使わない
+ * 1. coverImage が、2 記事以上から参照されているファイル名
+ *    （archive-shared-images.ts）でなく、幅 600px 以上・高さ 157px 以上・
+ *    縦横比 3 以下なら、og:image も JSON-LD もそれを使う。
+ *    #82 からは幅 600px 以上というだけで使っており、232 件がここで決まって
+ *    いたが、そのうち 9 件は別の記事の画像（共有ファイル名 6 件）や
+ *    SNS のカードに切り抜くと中身が残らない帯状の画像（縦横比 3 超 6 件、
+ *    うち 1 件は高さ 157px 未満でもある。重複あり）だった。#125 で 2. の
+ *    本文の画像と同じ条件をかけ、この 9 件を 2. に回した（残りは 223 件）。
+ *
+ *    共有ファイル名を «coverImage に書いている記事が持ち主» とみなして
+ *    取り戻すことはしない。共有名 178 種のうち coverImage に書いている記事が
+ *    1 つだけのものは 9 種しかなく、その 1 つの thumb.png は 571 の
+ *    coverImage にあるが、中身は鎌倉の地図で 737（鎌倉散策の記事）の本文の
+ *    画像だった。この規則だと 571 に誤った画像が戻る。また 5640 の
+ *    NANA_MIZUKI_LIVE_FLIGHT_2014.png は 5724 も coverImage に書いており、
+ *    この規則でも取り戻せない
+ * 2. それ以外の記事では、本文のローカル画像（出現順）と、1. の条件を
+ *    満たさなかった coverImage から «新しく» 選ぶ。どれも、共有ファイル名と
+ *    縦横比 3 超のものは使わない
  *    - og:image: 本文の画像のうち、最初に幅 600px 以上・高さ 157px 以上の
- *      もの。無ければ空（共通画像）
+ *      もの（1. と同じ条件）。無ければ空（共通画像）
  *    - JSON-LD: og:image が決まり、それが 50,000px 以上ならそれと同じもの。
  *      そうでなければ coverImage → 本文の順に、最初に «幅×高さ 50,000 以上»
  *      のもの。先に og:image と揃えるのは、SNS と検索結果で別の画像が
  *      出る «不必要な食い違い» を作らないため
  *
- * 609 記事での実測（main では og:image が coverImage 由来 232 件・
- * 共通画像 377 件で、JSON-LD の image も同じ 377 件が共通画像だった）:
- * - og:image: coverImage 232 件 / 本文の画像 145 件 / 共通画像 232 件
- * - JSON-LD: og:image と同じ 377 件 / 50,000px 以上の小さい画像 116 件 /
- *   image を出さない 116 件
+ * 609 記事での実測（ビルド後の dist の og:image と JSON-LD の image を数えた）:
+ * - og:image: coverImage 223 件 / 本文の画像 146 件 / 共通画像 240 件
+ * - JSON-LD: og:image と同じ 369 件 / 50,000px 以上の小さい画像 116 件 /
+ *   image を出さない 124 件
+ * #125 で 1. から外れた 9 件のうち、571 は og:image・JSON-LD とも本文の
+ * 画像に、残る 8 件は共通画像（JSON-LD は image なし）になった。
+ * #125 の前は og:image が 232 / 145 / 232 件、JSON-LD が 377 / 116 / 116 件。
+ * #124 より前は og:image が coverImage 由来 232 件・共通画像 377 件で、
+ * JSON-LD の image も同じ 377 件が共通画像だった
  *
  * 寸法はローカルファイルのヘッダだけから読む（image-size.ts）。
  * 外部 URL は remark-archive-images.ts の時点で候補から外れている。
@@ -146,7 +164,12 @@ export const archiveImages = (
   const cover = archiveCoverImageName(coverImage)
   const coverSize = cover === null ? null : sizeOf(cover, 'coverImage')
 
-  if (cover !== null && coverSize !== null && coverSize.width >= MIN_WIDTH) {
+  if (
+    cover !== null &&
+    coverSize !== null &&
+    !sharedNames.has(cover) &&
+    isOgSized(coverSize)
+  ) {
     const legacy = toUrlPath(cover)
     return { ogImage: legacy, jsonLdImage: legacy }
   }
