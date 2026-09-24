@@ -10,7 +10,7 @@ import { getStaticFilePath } from '../lib/blog-helpers'
 //
 // ただし «バンドルに入るので各ページには載らない» わけではない。実測では
 // このスクリプトは _astro/ の js に出ておらず、minify された状態で
-// 全 942 ページの HTML に直接埋め込まれている（1 ページ 2,831 バイト）。
+// 全 942 ページの HTML に直接埋め込まれている（1 ページ 2,917 バイト）。
 // ここを 1 行増やすと 942 倍の費用になることに注意
 const searchIndexPath = getStaticFilePath('/search-index.json')
 ---
@@ -173,7 +173,8 @@ const searchIndexPath = getStaticFilePath('/search-index.json')
       // 履歴が 1 つ増える、という状態だった。
       // 一度検索文字を入れた後は結果リストが空になるため、Enter は
       // null 参照で TypeError になる。なお «開いていてヒット 0 件» のときの
-      // 同種の TypeError はこのガードでは塞がらない（別件）。
+      // 同種の TypeError はこのガードでは塞がらない。そちらは select() /
+      // selectUp() / selectDown() の側で «対象が無ければ何もしない» として塞ぐ
       //
       // 元からあったが、アーカイブ 609 記事にも検索を付けたことで
       // «矢印キーでのスクロールが最も使われる長文ページ» に広がった
@@ -208,7 +209,17 @@ const searchIndexPath = getStaticFilePath('/search-index.json')
     }
 
     function select() {
+      // 結果が 0 件のときは選ぶものが無いので何もしない。
+      //
+      // どの記事にも当たらない語を打つと renderResults() が ul を空にし、
+      // selectFirst() も li が無いので何も選ばない。その状態で Enter を
+      // 押すと a が null のまま click() して TypeError になっていた。
+      // 索引は «アーカイブ記事は title と link だけ» なので、本文にしか
+      // 出てこない語はすべて 0 件になり、この経路は日常的に踏まれる
       const a = document.querySelector('.search-result ul > li.selected a')
+      if (!a) {
+        return
+      }
       a.click()
     }
 
@@ -220,9 +231,27 @@ const searchIndexPath = getStaticFilePath('/search-index.json')
     }
 
     function selectUp(event) {
+      // preventDefault() は結果が 0 件でも呼ぶ（下のガードより先に置く）。
+      //
+      // «モーダルが開いている間は入力欄にフォーカスがあるので、既定動作を
+      // 通してもページはスクロールしない» とは言い切れない。フォーカスを
+      // 入力欄に移すのは openModal() の 1 回だけで、その後モーダルの余白
+      // （入力欄の周りや結果欄の枠）をクリックすると、そこはフォーカスを
+      // 受け取れない要素なのでフォーカスは body に落ちる。モーダルは開いた
+      // ままで、背後のページにスクロールを止める仕掛けも無いため、ここで
+      // 既定動作を通すと «オーバーレイの裏で記事がスクロールする»。
+      // 入力欄にフォーカスがある場合でも、ブラウザによっては ↑↓ で
+      // キャレットが先頭 / 末尾に飛ぶ。結果があるときは ↑↓ でそれが
+      // 起きないので、0 件のときだけ起きるのは挙動として揃わない
       event.preventDefault()
 
       const ul = document.querySelector('.search-result ul')
+      // 結果が 0 件のときは移る先が無いので何もしない。
+      // ul が空だと lastElementChild が null で TypeError になっていた
+      // （preventDefault() が先に走るので、例外が出ても見た目は無反応だった）
+      if (!ul.lastElementChild) {
+        return
+      }
       const selected = ul.querySelector('.selected')
       if (selected) {
         selected.classList.remove('selected')
@@ -238,9 +267,14 @@ const searchIndexPath = getStaticFilePath('/search-index.json')
     }
 
     function selectDown(event) {
+      // 0 件でも preventDefault() を先に呼ぶ理由は selectUp() と同じ
       event.preventDefault()
 
       const ul = document.querySelector('.search-result ul')
+      // 結果が 0 件のときは移る先が無いので何もしない（selectUp() と対称）
+      if (!ul.firstElementChild) {
+        return
+      }
       const selected = ul.querySelector('.selected')
       if (selected) {
         selected.classList.remove('selected')
