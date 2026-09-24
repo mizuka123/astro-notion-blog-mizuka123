@@ -86,13 +86,15 @@ const searchIndexPath = getStaticFilePath('/search-index.json')
   }
   /* 件数と «該当なし» の表示（#108）。
      ライブリージョンは内容が変わる前から DOM にないと、変化を読み上げ
-     ない実装があるので、script で作らずマークアップに静的に置く。
+     ない実装があるとされるので、script で作らずマークアップに静的に置く。
      role="status" は暗黙で polite だが、display:none から表示された
      コンテナの中のリージョンを拾わない読み上げソフトへの保険として
-     aria-live も明示している。
-     空のときも display:none にはしない。隠したリージョンは読み上げが
-     落ちる実装がある。左の余白は ul の margin 0.3rem と a の padding
-     0.6rem の和で、結果のタイトルと頭を揃えている */
+     aria-live も明示している。空のときも display:none にはしない
+     （隠したリージョンは読み上げが落ちる実装があるとされる）。
+     ここまでの読み上げの挙動は一般に言われていることへの備えで、
+     実際の読み上げソフトでは確かめていない。
+     左の余白は ul の margin 0.3rem と a の padding 0.6rem の和で、
+     結果のタイトルと頭を揃えている */
   div.search-result p.search-status {
     margin: 0.3rem 0.9rem 0;
     color: var(--fg);
@@ -435,6 +437,10 @@ const searchIndexPath = getStaticFilePath('/search-index.json')
       // «該当なし» と嘘を出さないため。取得中に打たれた語は、取得後に
       // openModal() が renderedNeedle を忘れて描き直すので、そこで正しく出る。
       // 取得前の結果は必ず 0 件なので、fetched を見るのは 0 件のときだけでよい
+      // 語が変わるたびに（1 打鍵ごとに）書き換わる。polite なので読み上げは
+      // 入力に割り込まないが、速く打ったときに古い件数が順に読まれるか
+      // どうかは読み上げソフト次第で、確かめていない。遅延（debounce）で
+      // 間引くと件数が一覧より遅れて出るうえ、全ページに載る script も増える
       // ! は、要素がマークアップに静的にあって null にならないことを型に
       // 伝えるため（付けないと astro check の «possibly null» が 1 件増える）
       const n = results.length
