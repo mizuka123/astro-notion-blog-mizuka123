@@ -10,7 +10,7 @@ import { getStaticFilePath } from '../lib/blog-helpers'
 //
 // ただし «バンドルに入るので各ページには載らない» わけではない。実測では
 // このスクリプトは _astro/ の js に出ておらず、minify された状態で
-// 全 942 ページの HTML に直接埋め込まれている（1 ページ 3,265 バイト）。
+// 全 942 ページの HTML に直接埋め込まれている（1 ページ 3,425 バイト）。
 // ここを 1 行増やすと 942 倍の費用になることに注意
 const searchIndexPath = getStaticFilePath('/search-index.json')
 ---
@@ -135,6 +135,12 @@ const searchIndexPath = getStaticFilePath('/search-index.json')
   document.addEventListener('DOMContentLoaded', async () => {
     let feedItems = []
     let fetched = false
+    // 索引の取得に失敗したか（#144）。renderResults() が件数表示の欄に
+    // 失敗の文言を出すのに使う。取り直しを始めたら false に戻す
+    let failed = false
+    // 取得中の Promise。取得中にモーダルを閉じて開き直すと openModal() が
+    // もう一度走り、以前は fetch が 2 本並んでいた。そのときは同じ取得を待つ
+    let fetching: Promise<void> | null = null
     // 最後に描画した検索語（畳んだ後のもの）。同じ語での描き直しを
     // 省くために searchAndRender() が使う。null は «まだ何も描いていない»
     let renderedNeedle: string | null = null
@@ -200,7 +206,30 @@ const searchIndexPath = getStaticFilePath('/search-index.json')
       document.querySelector('.search-prompt input').focus()
 
       if (!fetched) {
-        await fetchSearchIndex()
+        // 取得の失敗（HTTP の失敗・通信断）はここで捕まえる（#144）。
+        // 以前は捕まえておらず、未処理の reject になるだけで読者には何も
+        // 出なかった。件数表示は取得前に «該当なし» と嘘をつかないよう
+        // 空にしているので、打っても一覧が空のまま黙っていた。
+        // 失敗しても下の描き直しには進み、renderResults() が failed を見て
+        // 文言を書く（マークアップに静的に置いた空の <li> もそこで消える）
+        //
+        // 取り直すときは失敗の文言を先に消す。残すと取り直しの最中も
+        // «読み込めませんでした» と出続け、また失敗したときは同じ文言の
+        // 書き直しになって、読み上げが変化として拾わない実装もありうる
+        // （確かめていない）。消した後の件数表示は、failed も fetched も
+        // false なので空になる。一覧は失敗したときに空にしてある
+        if (failed) {
+          failed = false
+          renderResults([])
+        }
+        try {
+          await (fetching ??= fetchSearchIndex())
+        } catch (e) {
+          console.error(e)
+          failed = true
+          // 次に開いたときに取り直せるよう、失敗した Promise は捨てる
+          fetching = null
+        }
       }
       // 開くたびに «前回の語» を忘れて、同じ語でも必ず描き直す。
       // 初回は索引の取得中に打たれた語が «空の索引で 0 件» のまま記録されて
@@ -436,7 +465,9 @@ const searchIndexPath = getStaticFilePath('/search-index.json')
       // 0 件でも索引の取得前（fetched が false）は空にする。空の索引で
       // «該当なし» と嘘を出さないため。取得中に打たれた語は、取得後に
       // openModal() が renderedNeedle を忘れて描き直すので、そこで正しく出る。
-      // 取得前の結果は必ず 0 件なので、fetched を見るのは 0 件のときだけでよい
+      // 取得前の結果は必ず 0 件なので、fetched を見るのは 0 件のときだけでよい。
+      // 取得に失敗したとき（failed）も索引は空で必ず 0 件になる。fetched より
+      // 先に見るのは、失敗の後に読者が打っても文言を空文字で消さないため（#144）
       // 語が変わるたびに（1 打鍵ごとに）書き換わる。polite なので読み上げは
       // 入力に割り込まないが、速く打ったときに古い件数が順に読まれるか
       // どうかは読み上げソフト次第で、確かめていない。遅延（debounce）で
@@ -448,9 +479,11 @@ const searchIndexPath = getStaticFilePath('/search-index.json')
         ? n > MAX_RESULTS
           ? `${n} 件中 ${MAX_RESULTS} 件を表示`
           : `${n} 件`
-        : fetched
-          ? '該当する記事はありません'
-          : ''
+        : failed
+          ? '検索の索引を読み込めませんでした。開き直すと再試行します'
+          : fetched
+            ? '該当する記事はありません'
+            : ''
 
       results.slice(0, MAX_RESULTS).forEach((item) => {
         const li = document.createElement('li')
@@ -490,9 +523,9 @@ const searchIndexPath = getStaticFilePath('/search-index.json')
           ?.getAttribute('data-search-index') ?? ''
 
       const res = await fetch(url)
+      // 状態コードはメッセージに入れ、openModal() の console.error で残す
       if (res.status !== 200) {
-        console.log(res.status)
-        throw new Error('Failed to fetch search index')
+        throw new Error(`Failed to fetch search index: ${res.status}`)
       }
 
       // XML を DOMParser で舐める必要がなくなったぶん、
