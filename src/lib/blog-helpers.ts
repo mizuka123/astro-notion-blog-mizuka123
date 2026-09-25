@@ -14,6 +14,7 @@ import type {
   Unsupported,
 } from './interfaces'
 import { pathJoin } from './utils'
+import { displayUrl, safeFetch, UnsafeFetchError } from './safe-fetch'
 
 export const filePath = (url: URL): string => {
   const [dir, filename] = url.pathname.split('/').slice(-2)
@@ -235,6 +236,12 @@ const _extractTargetBlockFromColums = (
     .flat()
 }
 
+// ブックマークのプレビュー用に取得する HTML の大きさの上限（展開後）。
+// 2026-09-26 のビルドで取得できた 19 件のうち最大は play.google.com の 1,307,208 バイト
+// （gzip を展開した後）で、ほかは 44 万バイト以下だった。最大の約 4 倍を上限にする。
+// 上限を超えたら、エラーの応答と同じくプレビュー無しに倒れる
+const MAX_BOOKMARK_HTML_BYTES = 5 * 1024 * 1024
+
 export const buildURLToHTMLMap = async (
   urls: URL[]
 ): Promise<{ [key: string]: string }> => {
@@ -245,7 +252,10 @@ export const buildURLToHTMLMap = async (
         controller.abort()
       }, REQUEST_TIMEOUT_MS)
 
-      return fetch(url.toString(), { signal: controller.signal })
+      return safeFetch(url, {
+        signal: controller.signal,
+        maxBytes: MAX_BOOKMARK_HTML_BYTES,
+      })
         .then((res) => {
           if (!res.ok) {
             // エラーページの HTML をそのまま metascraper に渡すと、その
@@ -258,9 +268,19 @@ export const buildURLToHTMLMap = async (
             )
             return ''
           }
-          return res.text()
+          // fetch の res.text() と同じく、charset に関わらず UTF-8 として読む
+          // （先頭の BOM も res.text() と同じく落ちる）
+          return new TextDecoder().decode(res.body)
         })
         .catch((err) => {
+          if (err instanceof UnsafeFetchError) {
+            // 取得を弾いた（プロトコル・アドレス・リダイレクト・大きさ）。
+            // 理由のメッセージはクエリを落とした URL を含む
+            console.error(
+              `Skipped a bookmark preview: ${err.message}. url: ${displayUrl(url)}`
+            )
+            return ''
+          }
           // ブックマークのプレビューは外部サイトの応答なのでビルドは止めない
           // （プレビューが出ないだけ）。ただし従来は原因を問わず
           // 「Request was aborted」と出していたため、タイムアウトなのか
