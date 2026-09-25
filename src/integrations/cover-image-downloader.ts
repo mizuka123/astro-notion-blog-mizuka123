@@ -63,7 +63,7 @@ export const isNotionFlatCover = (url: URL): boolean =>
 // build:start はページの書き出しと public/ のコピーより前に走るので、ここで書いた
 // ファイルは getDatabaseImageURLs() から見え、Astro（Vite）が public/ ごと dist にコピーする。
 // 仮にそこで入らなくても、build:done の public-notion-copier が public/notion を
-// dist/notion にコピーする（既に同じサイズのファイルがあれば何もしない）。
+// dist/notion にコピーする（既に同じ中身のファイルがあれば何もせず、違えば上書きする）。
 //
 // 切り抜きはしない。表示は CSS の object-fit: cover / object-position: center 60% で
 // ブラウザが切り抜いており、縦横比を変えると見え方が変わりうるため。
