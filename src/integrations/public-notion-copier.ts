@@ -26,8 +26,18 @@ const copyFiles = (src: string, dest: string, overwritten: string[]) => {
     if (entry.isDirectory()) {
       copyFiles(srcPath, destPath, overwritten)
     } else if (fs.existsSync(destPath)) {
-      // Astro が public/ を dist/ にコピーするため、ここに来る時点で同じ
-      // ファイルが既に置かれているのが正常な状態（実測で 21 件）。
+      // Vite が public/ をページの生成より前に dist/ にコピーするため、
+      // その時点で public/notion にあったファイルは、ここに来る時点で既に
+      // dist 側に置かれている。中身が同じならそれが正常な状態。
+      // どれだけ既にあるかは public/notion の始まりの状態で変わる
+      // （2026-09-26 実測、.gitkeep を含む）:
+      // - public/notion が空から始まるビルド（Cloudflare Pages）: 84 件中 42 件。
+      //   build:start のインテグレーションが書くアイキャッチ・その OG 画像・
+      //   カバーなどで、残りの 42 件（ページの生成中に取得する本文の画像）は
+      //   dist に無く、下の else でここで初めてコピーされる
+      // - 前回のファイルが残っている手元のビルド: 85 件全部。前回取得した
+      //   本文の画像も Vite がコピーしている（今の記事から参照されない、
+      //   前のビルドの残りの 1 件を含む）
       // 問題になるのは中身が違うときで、Vite が public/ をコピーするのは
       // ページの生成より前なので、public/notion に前回のビルドのファイルが
       // 残っている（手元のビルド）と、それが dist に入る。本文の画像の
