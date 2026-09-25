@@ -1,10 +1,5 @@
 import dns from 'node:dns'
-import http from 'node:http'
-import https from 'node:https'
 import net from 'node:net'
-import { Writable } from 'node:stream'
-import { pipeline } from 'node:stream/promises'
-import zlib from 'node:zlib'
 
 // ビルド時に、Notion で設定された任意の URL（記事のブックマーク、データベースの
 // external のカバー）を取得するための関数（#148）。
@@ -16,14 +11,15 @@ import zlib from 'node:zlib'
 // Notion が発行する署名付き URL のダウンロード（client.ts の downloadFile）は
 // Notion の管理下の URL なので対象にしていない。
 //
-// fetch（undici）ではなく node:http / node:https で書いている理由:
-// 判定と接続の間で DNS の答えが変わる「DNS rebinding」を防ぐには、判定に通った
-// アドレスにそのまま接続させる必要がある。Node の組み込みの fetch には名前解決を
-// 差し替える公開の手段が無い（undici の Agent の connect.lookup を dispatcher に
-// 渡せば可能だが、Node は undici を node: のモジュールとして公開しておらず、依存に
-// undici を足すことになる。組み込みの fetch と別の版の undici を混ぜる形にもなる）。
-// node:http の request は lookup を受け取るので、判定済みのアドレスを返す lookup を
-// 渡せば、依存を足さずに接続先を固定できる。
+// 防げないこと（DNS rebinding）: 取得の前に名前解決してアドレスを判定するが、
+// fetch は接続のときに改めて名前解決するので、判定と接続の間で DNS の答えが
+// 変われば（短い TTL で公開のアドレスから内部のアドレスに切り替えるなど）、
+// 判定を通った後に内部のアドレスへ接続されうる。Node の組み込みの fetch には
+// 名前解決を差し替える公開の手段が無く、防ぐには undici の Agent（connect.lookup）を
+// 依存に足して dispatcher に渡す必要がある。URL を設定できるのは記事を編集できる
+// 人だけで、その人はそもそも任意の内容を公開できるという今の影響の小ささに対して
+// 重すぎるので足さない（接続先を固定しても、公開のプロキシ越しの転送はどのみち
+// 防げない）。
 
 /** 取得をやめた（弾いた）ことを表す。メッセージが理由の 1 行になる */
 export class UnsafeFetchError extends Error {
@@ -186,9 +182,10 @@ const untilAborted = <T>(
 }
 
 /**
- * URL のプロトコルとホストを確かめ、接続してよいアドレスの一覧を返す。
+ * URL のプロトコルとホストを確かめ、判定に使ったアドレスの一覧を返す。
  * 名前解決の結果に 1 つでも公開でないアドレスがあれば、全体を弾く
- * （どのアドレスに接続されるかは接続時の順序や到達性で変わるため）
+ * （どのアドレスに接続されるかは接続時の順序や到達性で変わるため）。
+ * 返したアドレスに接続を固定するわけではない（冒頭の DNS rebinding の注意）
  */
 export const resolveSafeAddresses = async (
   url: URL,
@@ -220,135 +217,63 @@ export const resolveSafeAddresses = async (
   return addresses
 }
 
-// Node の組み込みの fetch が送るのと同じヘッダ（Node 24 で実測）。
-// 送るヘッダで応答を変えるサイトがあり（403 を返すなど）、fetch から置き換えても
-// ブックマークのプレビューが変わらないように揃える
-const REQUEST_HEADERS = {
-  accept: '*/*',
-  'accept-language': '*',
-  'sec-fetch-mode': 'cors',
-  'user-agent': 'node',
-  'accept-encoding': 'gzip, deflate',
-}
-
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308])
-
-/** 判定済みのアドレスだけを返す lookup。接続の直前の名前解決をこれに置き換える */
-const pinnedLookup =
-  (addresses: ResolvedAddress[]): net.LookupFunction =>
-  (_hostname, options, callback) => {
-    const candidates = options.family
-      ? addresses.filter((a) => a.family === options.family)
-      : addresses
-    if (candidates.length === 0) {
-      callback(
-        Object.assign(new Error('no address of the requested family'), {
-          code: 'ENOTFOUND',
-        }),
-        ''
-      )
-    } else if (options.all) {
-      // Node 20 以降の既定（autoSelectFamily）では all: true で呼ばれ、配列を返す
-      callback(null, candidates)
-    } else {
-      callback(null, candidates[0].address, candidates[0].family)
-    }
-  }
-
-const requestOnce = (
-  url: URL,
-  addresses: ResolvedAddress[],
-  signal: AbortSignal | undefined
-): Promise<http.IncomingMessage> =>
-  new Promise((resolve, reject) => {
-    const client = url.protocol === 'https:' ? https : http
-    const req = client.request(
-      url,
-      {
-        method: 'GET',
-        headers: REQUEST_HEADERS,
-        lookup: pinnedLookup(addresses),
-        // 接続を使い回さない。プールに残った接続が、判定したのと別のアドレスに
-        // つながっていることがないようにするため（ビルド時の取得は数が少なく、
-        // 使い回さないことによる遅れは小さい）
-        agent: false,
-        signal,
-      },
-      resolve
-    )
-    req.on('error', reject)
-    req.end()
-  })
 
 /**
  * 本文を読む。Content-Length を信じ切らず（無いことも、偽ることもある）、
- * 展開後のバイト数を読みながら数え、上限を超えたら接続ごと打ち切る。
- * 展開後で数えるのは、小さな gzip が巨大に展開される応答を防ぐため
+ * 読みながらバイト数を数え、上限を超えたら打ち切る。fetch の body は
+ * Content-Encoding を展開した後のストリームなので、数えるのは展開後の大きさになる
+ * （小さな gzip が巨大に展開される応答も止まる）
  */
 const readBody = async (
-  res: http.IncomingMessage,
+  res: Response,
   url: URL,
-  maxBytes: number,
-  signal: AbortSignal | undefined
+  maxBytes: number
 ): Promise<Buffer> => {
   const tooLarge = () =>
     new UnsafeFetchError(
       `refused to fetch ${displayUrl(url)}: the response is larger than ${maxBytes} bytes`
     )
-  const declared = Number(res.headers['content-length'])
+  const declared = Number(res.headers.get('content-length') ?? NaN)
   if (Number.isFinite(declared) && declared > maxBytes) {
-    res.destroy()
+    await res.body?.cancel()
     throw tooLarge()
   }
+  if (!res.body) {
+    return Buffer.alloc(0)
+  }
 
-  // fetch と同じく、Content-Encoding を後ろから順に展開する。知らない符号化は
-  // fetch と同じくそのまま返す
-  const decoders = (res.headers['content-encoding'] ?? '')
-    .split(',')
-    .map((e) => e.trim().toLowerCase())
-    .filter((e) => e && e !== 'identity')
-    .reverse()
-    .flatMap((e) =>
-      e === 'gzip' || e === 'x-gzip'
-        ? [zlib.createGunzip()]
-        : e === 'deflate'
-          ? [zlib.createInflate()]
-          : e === 'br'
-            ? [zlib.createBrotliDecompress()]
-            : []
-    )
-
-  const chunks: Buffer[] = []
+  const reader = res.body.getReader()
+  const chunks: Uint8Array[] = []
   let total = 0
-  const sink = new Writable({
-    write(chunk: Buffer, _encoding, callback) {
-      total += chunk.length
-      if (total > maxBytes) {
-        callback(tooLarge())
-        return
-      }
-      chunks.push(chunk)
-      callback()
-    },
-  })
-  await pipeline([res, ...decoders, sink], { signal })
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) {
+      break
+    }
+    total += value.byteLength
+    if (total > maxBytes) {
+      await reader.cancel()
+      throw tooLarge()
+    }
+    chunks.push(value)
+  }
   return Buffer.concat(chunks)
 }
 
 /**
- * 外部の URL を安全に取得する。次のときは UnsafeFetchError を投げ、取得しない:
+ * 外部の URL を Node の組み込みの fetch で取得する。次のときは UnsafeFetchError を
+ * 投げ、取得しない:
  * - プロトコルが http: / https: 以外
  * - ホストの名前解決の結果（IP アドレスを直接書いた URL はそのアドレス）が
  *   公開のアドレスでない（isPublicAddress）
- * - リダイレクトが maxRedirects 回を超える（行き先ごとに上の判定をやり直す）
+ * - リダイレクトが maxRedirects 回を超える（redirect: 'manual' で自分で追い、
+ *   行き先ごとに上の判定をやり直す）
  * - 本文が maxBytes を超える
  *
  * 2xx 以外の応答は投げずに ok: false で返す（本文は読まない）。
- * タイムアウトは呼び出し側が signal で掛ける（中断すると name が AbortError のエラー）
- *
- * DNS rebinding について: 判定に通ったアドレスに接続を固定しているので、判定の後に
- * DNS の答えが変わっても内部のアドレスには接続しない。ただし、公開のアドレスの
- * 先にあるサーバーがビルド環境の内部に転送する構成（公開のプロキシなど）までは防げない
+ * タイムアウトは呼び出し側が signal で掛ける（中断すると name が AbortError のエラー）。
+ * 送るヘッダは fetch の既定のまま
  */
 export const safeFetch = async (
   url: URL,
@@ -359,46 +284,14 @@ export const safeFetch = async (
     isAllowedAddress,
   }: SafeFetchOptions
 ): Promise<SafeFetchResponse> => {
-  try {
-    return await followRedirects(url, {
-      signal,
-      maxBytes,
-      maxRedirects,
-      isAllowedAddress,
-    })
-  } catch (err) {
-    // 本文の受信中に中断すると、ソケットが先に壊れて「aborted」のような別の
-    // エラーで失敗することがある。呼び出し側はタイムアウトを name が AbortError か
-    // で見分けているので、中断されていたら AbortError に揃える
-    if (signal?.aborted && !(err instanceof UnsafeFetchError)) {
-      throw abortError(signal)
-    }
-    throw err
-  }
-}
-
-const followRedirects = async (
-  url: URL,
-  {
-    signal,
-    maxBytes,
-    maxRedirects,
-    isAllowedAddress,
-  }: Required<Pick<SafeFetchOptions, 'maxBytes' | 'maxRedirects'>> &
-    Pick<SafeFetchOptions, 'signal' | 'isAllowedAddress'>
-): Promise<SafeFetchResponse> => {
   let current = url
   for (let redirects = 0; ; redirects++) {
-    const addresses = await resolveSafeAddresses(current, {
-      signal,
-      isAllowedAddress,
-    })
-    const res = await requestOnce(current, addresses, signal)
-    const status = res.statusCode ?? 0
-    const location = res.headers.location
+    await resolveSafeAddresses(current, { signal, isAllowedAddress })
+    const res = await fetch(current, { signal, redirect: 'manual' })
+    const location = res.headers.get('location')
 
-    if (REDIRECT_STATUSES.has(status) && location) {
-      res.destroy()
+    if (REDIRECT_STATUSES.has(res.status) && location) {
+      await res.body?.cancel()
       if (redirects >= maxRedirects) {
         throw new UnsafeFetchError(
           `refused to fetch ${displayUrl(url)}: more than ${maxRedirects} redirects`
@@ -409,12 +302,17 @@ const followRedirects = async (
       continue
     }
 
-    if (status < 200 || status > 299) {
-      res.destroy()
-      return { ok: false, status, url: current, body: Buffer.alloc(0) }
+    if (!res.ok) {
+      await res.body?.cancel()
+      return {
+        ok: false,
+        status: res.status,
+        url: current,
+        body: Buffer.alloc(0),
+      }
     }
 
-    const body = await readBody(res, current, maxBytes, signal)
-    return { ok: true, status, url: current, body }
+    const body = await readBody(res, current, maxBytes)
+    return { ok: true, status: res.status, url: current, body }
   }
 }
