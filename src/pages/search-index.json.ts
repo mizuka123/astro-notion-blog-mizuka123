@@ -64,7 +64,10 @@ export interface SearchIndexItem {
  */
 
 // import.meta.glob はパスをキーにしたオブジェクトを返すため Object.values で配列化する。
-// archive/index.astro と同じ md 群を同じやり方で読んでいる
+// archive/index.astro と同じ md 群だが、あちらは src/lib/archive-frontmatter.ts で
+// frontmatter だけを読む。ここは remark-archive-description が足す description が
+// 要るのでモジュールとして読む。JSON のエンドポイントなので、md の layout
+// （LayoutMd.astro）の CSS がどこかのページに漏れることはない（#123）
 const archiveModules = Object.values(
   import.meta.glob<MarkdownInstance<ArchiveIndexFrontmatter>>(
     './archive/*.md',
@@ -86,7 +89,7 @@ export async function GET() {
   }))
 
   if (archiveModules.length === 0) {
-    // archive/index.astro と同じ安全網。import.meta.glob は 0 件マッチでも
+    // archive-frontmatter.ts と同じ安全網。import.meta.glob は 0 件マッチでも
     // 例外を出さず空オブジェクトを返すので、黙って «アーカイブ 0 件の
     // インデックス» が出来上がってしまう。それは今回直した不具合そのもの
     throw new Error(

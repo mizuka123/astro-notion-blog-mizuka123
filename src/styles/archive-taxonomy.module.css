@@ -42,6 +42,25 @@
 }
 
 /*
+ * 一覧のリンクの下線（#123）。
+ *
+ * このサイトのリンクは Layout.astro の a { text-decoration: none } で
+ * 下線が無いのが既定だが、この 4 ページの一覧のリンクには下線が
+ * 付いていた。src/layouts/LayoutMd.astro の <style is:global> にある
+ * .content a { text-decoration: underline } が、アーカイブの md を
+ * モジュールとして読んでいたせいで «漏れて» 当たっていたため。
+ * #123 で漏れを止めたが、公開中の見た目なので下線は残す
+ * （一覧の中でどこがリンクかが見て分かり、読みやすさの面でも残す価値がある）。
+ * .entries は /tag/<slug>/ と /category/<slug>/ の記事一覧、
+ * .taxonomyLinks は /tag/ のタグ一覧と /archive/ のカテゴリー一覧。
+ * /archive/ の記事一覧と「タグから探す」は src/pages/archive/index.astro で当てる
+ */
+.entries a,
+.taxonomyLinks a {
+  text-decoration: underline;
+}
+
+/*
  * リンクに添える件数。.taxonomyLinks の中に入れ子にしていないのは、
  * /archive/ の「タグから探す」だけが <ul> の外（<p>）にあるため。
  * クラス名は CSS module がハッシュ化するので、単独で書いても

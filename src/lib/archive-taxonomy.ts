@@ -1,4 +1,4 @@
-import type { MarkdownInstance } from 'astro'
+import { archiveEntries } from './archive-frontmatter'
 import { stripBasePath } from './blog-helpers'
 
 /**
@@ -9,23 +9,16 @@ import { stripBasePath } from './blog-helpers'
  * 404 を返している。転送ではなく実ページを置く判断をしたので、
  * 「どの記事がどの分類に属するか」を 1 か所で決める必要がある。
  *
- * ここが glob を持つのは、/category/[category] と /tag/[tag] の 2 ページが
+ * ここで分類を組み立てるのは、/category/[category] と /tag/[tag] の 2 ページが
  * それぞれ 609 件を読み直すと、同じ除外条件（draft）と同じ並び順（日付の
  * 新しい順）を 2 か所で書くことになるため。片方だけ直したときに
  * 「カテゴリー一覧とタグ一覧で同じ記事の並びが違う」状態になる。
+ *
+ * 記事の frontmatter は src/lib/archive-frontmatter.ts から受け取る。
+ * ここで md を import.meta.glob の eager で読むと、このファイルを import する
+ * 300 ページに LayoutMd.astro の global CSS が漏れる（#123。理由は
+ * archive-frontmatter.ts の冒頭を参照）
  */
-
-// frontmatter のうち、このモジュールが読む項目だけを宣言する。
-// 実ファイルには layout / coverImage もあるが、分類の組み立てには要らない。
-// title / date は全 609 件が持つ（src/layouts/LayoutMd.astro の注記と同じ）。
-// categories は全 609 件にあり、tags は 435 件にしか無いので省略可能にする
-export interface ArchiveTaxonomyFrontmatter {
-  title: string
-  date: string
-  draft?: boolean
-  categories?: string[]
-  tags?: string[]
-}
 
 // 一覧に出すのに必要な最小限。記事本文や coverImage まで持ち回ると、
 // 298 ページ分の getStaticPaths の戻り値が丸ごと重くなる
@@ -121,22 +114,6 @@ const CATEGORY_DISPLAY_NAMES: Record<string, string> = {
 export const getCategoryDisplayName = (slug: string): string =>
   CATEGORY_DISPLAY_NAMES[slug] ?? slug
 
-const archiveModules = import.meta.glob<
-  MarkdownInstance<ArchiveTaxonomyFrontmatter>
->('../pages/archive/*.md', { eager: true })
-
-// import.meta.glob はパスをキーにしたオブジェクトを返すため Object.values で配列化する
-const allArchivePosts = Object.values(archiveModules)
-
-// Astro.glob と違い import.meta.glob は 0 件でも例外を投げず空オブジェクトを
-// 返す。パスを書き間違えると「カテゴリーページが 1 枚も出ないビルドが
-// 成功する」ことになるので、src/pages/archive/index.astro と同じ安全網を張る
-if (allArchivePosts.length === 0) {
-  throw new Error(
-    "src/lib/archive-taxonomy.ts の '../pages/archive/*.md' がひとつもマッチしませんでした。アーカイブ記事の配置を確認してください。"
-  )
-}
-
 /**
  * スラッグの並び順。
  *
@@ -162,12 +139,14 @@ interface ClassifiedPost extends ArchivePostRef {
 // 同日の記事は url で決めて、ビルドのたびに並びが入れ替わらないようにする
 // （並びが揺れると差分比較で «変わっていないのに差分が出る»）。
 // localeCompare ではなく compareSlugs を使う理由は上の定義を参照
-const classifiedPosts: ClassifiedPost[] = allArchivePosts
+// 0 件のときは archive-frontmatter.ts が例外でビルドを止めるので、
+// ここで «カテゴリーページが 1 枚も出ないビルド» が成功することは無い
+const classifiedPosts: ClassifiedPost[] = archiveEntries
   .filter((post) => !post.frontmatter.draft)
   .map((post) => ({
     title: post.frontmatter.title,
     date: post.frontmatter.date,
-    url: stripBasePath(post.url ?? ''),
+    url: stripBasePath(post.url),
     categories: post.frontmatter.categories ?? [],
     tags: post.frontmatter.tags ?? [],
   }))
