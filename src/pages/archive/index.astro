@@ -137,15 +137,22 @@ const description = `アーカイブ記事 ${sortedPosts.length} 件をすべて
     </p>
 
     <h2>すべての記事</h2>
-    {
-      sortedPosts.map((post) => (
-        <li>
-          <a href={getNavLink(stripBasePath(post.url ?? ''))}>
-            {post.frontmatter.title}
-          </a>
-        </li>
-      ))
-    }
+    {/*
+      記事一覧は ul で囲む（Issue #111）。以前は div の直下に li が並んでいて
+      HTML として不正で、支援技術に «609 項目のリスト» として伝わらなかった。
+      見た目は変えないため、ul に当たる余白や文字の指定は下の .post-list で打ち消している
+    */}
+    <ul class="post-list">
+      {
+        sortedPosts.map((post) => (
+          <li>
+            <a href={getNavLink(stripBasePath(post.url ?? ''))}>
+              {post.frontmatter.title}
+            </a>
+          </li>
+        ))
+      }
+    </ul>
   </div>
 
   <div slot="aside">
@@ -160,5 +167,27 @@ const description = `アーカイブ記事 ${sortedPosts.length} 件をすべて
      置いて /tag/ と共有している。ここはこのページ固有の間隔だけ */
   p.tag-index {
     margin: 0.6rem 0 0;
+  }
+
+  /* 記事一覧の ul（Issue #111）。ul で囲む前の見た目（li が div の直下にあり、
+     記事名の左端が本文の左端に揃い、黒丸は本文の左の外にぶら下がる。最初の
+     行は直前の h2 の下端に接し、行の間隔は line-height: normal）を 1 px も
+     変えないため、ul に当たる指定を打ち消す。
+     - margin / padding: ブラウザ既定（上下 1em、左 40px）と、
+       src/styles/layout-global.css の ul,ol { margin: 0;
+       padding-inline-start: 1.5rem } の両方を 0 に戻す
+     - color / font-weight / font-size / line-height: layout-global.css の
+       p,ul { color: #222; font-weight: 400; font-size: 1rem;
+       line-height: 1.8rem } が li に継承されると行の間隔（24.8px →
+       28.8px）と黒丸の色が変わるので、囲む前と同じく親の div から継承させる
+     list-style は既定の disc / outside が今の見た目そのものなので指定しない。
+     ページ全体の ul に効かないよう、クラスで限定する（#123 の二の舞を避ける） */
+  ul.post-list {
+    margin: 0;
+    padding: 0;
+    color: inherit;
+    font-weight: inherit;
+    font-size: inherit;
+    line-height: inherit;
   }
 </style>
