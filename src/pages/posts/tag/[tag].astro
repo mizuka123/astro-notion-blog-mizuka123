@@ -127,11 +127,11 @@ const description =
     </footer>
   </div>
 
-  <div slot="aside">
+  <Fragment slot="aside">
     <BlogPostsLink heading="おすすめ記事" posts={rankedPosts} />
     <BlogPostsLink heading="最新記事" posts={recentPosts} />
     <BlogTagsLink heading="カテゴリー" tags={tags} />
-  </div>
+  </Fragment>
 </Layout>
 
 <style>

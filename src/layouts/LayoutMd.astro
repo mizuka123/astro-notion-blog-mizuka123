@@ -211,19 +211,17 @@ const post: Pick<Post, 'Date' | 'Title'> = {
           </div>
         </main>
         <aside>
-          <div>
-            <SearchButton />
-            <BlogPostsLink heading="おすすめ記事" posts={rankedPosts} />
-            <BlogPostsLink heading="最新記事" posts={recentPosts} />
-            <BlogTagsLink heading="カテゴリー" tags={tags} />
-            <ul>
-            <li><a href={getNavLink('/contact')}>お問い合わせ</a></li>
-            <li>
-              <a href={getNavLink('/posts/privacy')}>プライバシーポリシー</a>
-            </li>
-            <li><a href={getNavLink('/archive')}>アーカイブ一覧</a></li>
-            </ul>
-          </div>
+          <SearchButton />
+          <BlogPostsLink heading="おすすめ記事" posts={rankedPosts} />
+          <BlogPostsLink heading="最新記事" posts={recentPosts} />
+          <BlogTagsLink heading="カテゴリー" tags={tags} />
+          <ul>
+          <li><a href={getNavLink('/contact')}>お問い合わせ</a></li>
+          <li>
+            <a href={getNavLink('/posts/privacy')}>プライバシーポリシー</a>
+          </li>
+          <li><a href={getNavLink('/archive')}>アーカイブ一覧</a></li>
+          </ul>
         </aside>
       </div>
     </div>
