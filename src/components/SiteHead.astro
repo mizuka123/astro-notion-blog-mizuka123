@@ -1,6 +1,7 @@
 ---
 import { getDatabase } from '../lib/notion/client'
 import { getNavLink, getStaticFilePath } from '../lib/blog-helpers'
+import { KATEX_CSS } from '../lib/katex-css'
 
 // すべて省略可能。省略時は Notion のデータベース側の値にフォールバックする
 export interface Props {
@@ -69,6 +70,10 @@ export interface Props {
   //
   // アーカイブ記事（LayoutMd.astro）、一覧ページ、404 などは渡さない。
   // アーカイブ 609 記事は Markdown で、KaTeX を通す経路がそもそも無い
+  //
+  // href の版と integrity は直書きせず、インストール済みの katex から
+  // src/lib/katex-css.ts が求める（以前は 0.16.4 を直書きしていて、描画に
+  // 使う katex 0.16.19 と食い違っていた。Issue #136）
   katexCss?: boolean
 }
 
@@ -215,8 +220,8 @@ const articleJsonLdText = articleJsonLd
   katexCss && (
     <link
       rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.css"
-      integrity="sha384-vKruj+a13U8yHIkAyGgK1J3ArTLzrFGBbBc0tDp4ad/EyewESeXE/Iv67Aj8gKZ0"
+      href={KATEX_CSS.href}
+      integrity={KATEX_CSS.integrity}
       crossorigin="anonymous"
     />
   )
