@@ -40,8 +40,10 @@ const IMG_SRC =
 
 // 生 HTML の属性値に入り得る文字参照のうち、ファイル名に現れうるもの。
 // &amp; 以外は現状の記事に出てこないが、&#39; などを残したままだと
-// ファイルが見つからず黙って候補から外れる
-const decodeEntities = (value: string): string =>
+// ファイルが見つからず黙って候補から外れる。
+// remark-archive-raw-image-dimensions.ts も生 <img> の src を同じように
+// ファイルへ対応づけるので export している
+export const decodeEntities = (value: string): string =>
   value
     .replace(/&quot;/g, '"')
     .replace(/&#39;|&apos;/g, "'")

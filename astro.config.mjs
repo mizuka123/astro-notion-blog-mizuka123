@@ -15,6 +15,7 @@ import rehypeArchiveHeadings from './src/lib/rehype-archive-headings';
 import rehypeImageDimensions from './src/lib/rehype-image-dimensions';
 import remarkArchiveDescription from './src/lib/remark-archive-description';
 import remarkArchiveImages from './src/lib/remark-archive-images';
+import remarkArchiveRawImageDimensions from './src/lib/remark-archive-raw-image-dimensions';
 import remarkArchiveRelativeImages from './src/lib/remark-archive-relative-images';
 import rehypeLazyImages from './src/lib/rehype-lazy-images';
 import rehypeProductBox from './src/lib/rehype-product-box';
@@ -166,9 +167,16 @@ export default defineConfig({
     // remarkArchiveRelativeImages は生 HTML の <img src="images/..."> を
     // /archive/images/... に直す（#126）。remarkArchiveImages より前に置き、
     // 直した URL を本文の画像として拾わせる。remarkArchiveDescription は
-    // html ノードを読まないので、こちらとの順序は結果に影響しない
+    // html ノードを読まないので、こちらとの順序は結果に影響しない。
+    // remarkArchiveRawImageDimensions は生 HTML の <img> に width / height を
+    // 足す（#152。rehypeImageDimensions からは生 HTML が見えないため）。
+    // src が /archive/images/ になっていないと対象外と判定するので、
+    // 必ず remarkArchiveRelativeImages の «後» に置くこと。前に置くと
+    // 12 個とも黙って寸法が付かない。remarkArchiveImages は src だけを
+    // 読むので、属性が増えても拾う URL は変わらない
     remarkPlugins: [
       remarkArchiveRelativeImages,
+      remarkArchiveRawImageDimensions,
       remarkArchiveDescription,
       remarkArchiveImages,
     ],
