@@ -264,7 +264,7 @@ export const buildURLToHTMLMap = async (
             // 「ERROR: The request could not be satisfied」と表示されていた。
             // プレビュー無し（URL とファビコンだけ）に倒す
             console.error(
-              `Skipped a bookmark preview because the site responded with an error status. url: ${url.toString()}, status: ${res.status}`
+              `Skipped a bookmark preview because the site responded with an error status. url: ${displayUrl(url)}, status: ${res.status}`
             )
             return ''
           }
@@ -287,7 +287,7 @@ export const buildURLToHTMLMap = async (
           // ネットワークエラーなのか区別がつかなかった
           const timedOut = err instanceof Error && err.name === 'AbortError'
           console.error(
-            `Failed to fetch a bookmark preview. url: ${url.toString()}${
+            `Failed to fetch a bookmark preview. url: ${displayUrl(url)}${
               timedOut ? ` (timed out after ${REQUEST_TIMEOUT_MS}ms)` : ''
             }`
           )
