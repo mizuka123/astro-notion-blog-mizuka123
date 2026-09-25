@@ -95,7 +95,15 @@ const calloutIconUrls = extractTargetBlocks('callout', blocks)
   )
   .filter((url): url is string => !!url)
 
-await downloadFiles(`posts/${slug}`, [...fileUrls, ...calloutIconUrls])
+// 画像ブロックの画像だけ、幅 1600px 超なら縮小する（#128、
+// src/lib/notion/resize-image.ts）。file ブロックは読者が元のファイルを
+// 落とすためのものなので、画像でも縮めない
+const imageUrls = new Set(
+  fileUrls.filter((_, i) => fileAtacchedBlocks[i].Type === 'image')
+)
+await downloadFiles(`posts/${slug}`, [...fileUrls, ...calloutIconUrls], {
+  shouldResize: (url) => imageUrls.has(url),
+})
 
 const currentPostIndex = allPosts.findIndex((post) => post.Slug === slug)
 const prevPost = allPosts[currentPostIndex + 1]

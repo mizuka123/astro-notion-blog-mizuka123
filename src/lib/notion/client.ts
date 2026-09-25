@@ -11,6 +11,7 @@ import { Readable, Transform } from 'node:stream'
 import type { ReadableStream as WebReadableStream } from 'node:stream/web'
 import { pipeline } from 'node:stream/promises'
 import sharp from 'sharp'
+import { resizeDownloadedImage } from './resize-image'
 import {
   DATABASE_ID,
   NOTION_API_SECRET,
@@ -434,7 +435,15 @@ export async function getAllTags(): Promise<SelectProperty[]> {
  */
 const displayUrl = (url: URL): string => `${url.origin}${url.pathname}`
 
-export async function downloadFile(url: URL) {
+/**
+ * resizeLabel を渡すと、書き終えた後に幅 1600px 超の画像を縮小する
+ * （resize-image.ts。ログの接頭辞に使う）。縮小に失敗しても投げず、
+ * 元の画像のまま残す
+ */
+export async function downloadFile(
+  url: URL,
+  { resizeLabel }: { resizeLabel?: string } = {}
+) {
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
 
@@ -523,6 +532,13 @@ export async function downloadFile(url: URL) {
   } finally {
     clearTimeout(stallTimeoutId)
   }
+
+  // 書き終えてから縮小する。pipeline の途中に縮小を挟まないのは、幅が分かるのは
+  // ヘッダを読んだ後で、しかも縮小しない画像（大半）は今のバイト列のまま残したいため
+  // （途中に挟むと全件が再エンコードされる）
+  if (resizeLabel !== undefined) {
+    await resizeDownloadedImage(filepath, resizeLabel)
+  }
 }
 
 /**
@@ -532,15 +548,22 @@ export async function downloadFile(url: URL) {
  * 失敗したものを 1 回のビルドですべて列挙できる。不正な URL もダウンロード
  * できない以上は失敗として扱う（取りこぼすと本番に壊れた <img> が出るため）。
  *
+ * shouldResize が true を返した URL は、ダウンロード後に幅 1600px 超なら縮小する
+ * （resize-image.ts）。本文とアイキャッチの画像だけに使い、添付ファイルやカバーには
+ * 使わない。添付ファイルは読者が元のファイルを落とすためのもので、DB のカバーは
+ * 幅 1920px で表示しているため
+ *
  * なお astro:build:start フックは integration ごとに直列に実行されるため、
  * 先に走った integration が投げた時点でビルドは止まり、後続の integration の
  * 失敗はそのビルドでは分からない。
  */
 export async function downloadFiles(
   label: string,
-  rawUrls: string[]
+  rawUrls: string[],
+  { shouldResize }: { shouldResize?: (rawUrl: string) => boolean } = {}
 ): Promise<void> {
   const urls: URL[] = []
+  const resize: boolean[] = []
   const failures: string[] = []
   // 同じファイルを指す URL が複数含まれていると、同一パスへ並行に書き込んで
   // ファイルが壊れる（失敗側の後始末が成功側の書き込みを消すこともある）。
@@ -564,9 +587,14 @@ export async function downloadFiles(
     }
     seenPaths.add(destPath)
     urls.push(url)
+    resize.push(shouldResize?.(rawUrl) ?? false)
   })
 
-  const results = await Promise.allSettled(urls.map((url) => downloadFile(url)))
+  const results = await Promise.allSettled(
+    urls.map((url, i) =>
+      downloadFile(url, { resizeLabel: resize[i] ? label : undefined })
+    )
+  )
 
   results.forEach((result, i) => {
     if (result.status === 'rejected') {
