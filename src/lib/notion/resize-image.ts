@@ -20,7 +20,7 @@ import sharp from 'sharp'
 //
 // 形式とファイル名は変えない。URL は Notion のファイル名から決まっていて、
 // 本文の <img>・og:image・既存のリンクがそのパスを指しているため。
-// GIF（アニメーション）と SVG、複数フレームの WebP は触らない。
+// GIF（アニメーション）と SVG、複数フレームの WebP、CMYK の JPEG は触らない。
 //
 // 縮小後の幅は MAX_WIDTH になるので、次のビルドで同じファイルに対して呼ばれても
 // 幅の判定で何もせずに返る（再圧縮を繰り返して劣化が積み重ならない）。
@@ -100,6 +100,19 @@ export async function resizeDownloadedImage(
       !['jpeg', 'png', 'webp'].includes(metadata.format ?? '') ||
       (metadata.pages ?? 1) > 1
     ) {
+      return { status: 'skipped' }
+    }
+
+    // CMYK の画像は縮小せず元のまま残す。sharp は CMYK（4 チャンネル）を sRGB
+    // （3 チャンネル）に変換して書き出すので、#85 で ICC プロファイルを落として色が
+    // 暗くなったのと同じ種類の色の変化が起きうる。出力の検査は形式と幅しか見ないので
+    // 気付けない。元のまま（ブラウザの今の表示のまま）配信する方を選ぶ。
+    // 今の Notion 記事の画像に CMYK は無い（public/notion の 64 枚を sharp の
+    // metadata で確かめて 0 枚。すべて srgb）
+    if (metadata.space === 'cmyk') {
+      console.log(
+        `[${label}] kept the original (CMYK; converting to sRGB could shift colours): ${filepath}`
+      )
       return { status: 'skipped' }
     }
 
