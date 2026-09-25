@@ -16,6 +16,15 @@ if (block.Image.External) {
 } else if (block.Image.File) {
   image = filePath(new URL(block.Image.File.Url))
 }
+
+// alt には Notion のキャプションをプレーンテキストにして使う。リンクや
+// 装飾が付いていても PlainText には文字だけが入っている。キャプションが
+// 無ければ空にする。以前の固定文字列 «Image in a image block» は画像の
+// 説明になっておらず、読み上げでは英語の無意味な文を聞かせるだけだった
+const alt = (block.Image?.Caption ?? [])
+  .map((richText: interfaces.RichText) => richText.PlainText)
+  .join('')
+  .trim()
 ---
 
 <figure class="image">
@@ -25,10 +34,10 @@ if (block.Image.External) {
         <div>
           {ENABLE_LIGHTBOX ? (
             <a data-fslightbox href={image} data-type="image">
-              <img src={image} alt="Image in a image block" loading="lazy" />
+              <img src={image} alt={alt} loading="lazy" />
             </a>
           ) : (
-            <img src={image} alt="Image in a image block" loading="lazy" />
+            <img src={image} alt={alt} loading="lazy" />
           )}
         </div>
         <Caption richTexts={block.Image.Caption} />
