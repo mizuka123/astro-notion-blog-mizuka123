@@ -88,9 +88,16 @@ const grammer =
     display: flex;
     justify-content: flex-end;
   }
+  /*
+   * 幅は固定せず 4rem を下限にし、折り返させない。#117 で文言を日本語に
+   * したところ、押したあとの «コピーしました» が 4rem に収まらず 3 行に
+   * 折り返し、ボタンが縦に伸びて下のコードを押し下げたため。ボタンは
+   * 右寄せの flex の行に 1 つだけ置いてあるので、広がる分は左へ伸びる
+   */
   .code button.copy {
     display: block;
-    width: 4rem;
+    min-width: 4rem;
+    white-space: nowrap;
     border: 0;
     border-radius: var(--radius);
     background-color: rgba(227, 226, 224, 0.5);
