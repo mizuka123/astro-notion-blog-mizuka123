@@ -11,9 +11,18 @@ import { parseFrontmatter } from '@astrojs/markdown-remark'
  * モジュールは frontmatter の layout（src/layouts/LayoutMd.astro）を
  * import しているので、それを読んだページには LayoutMd.astro の
  * <style is:global> まで一緒に配信されていた（Issue #123。実測で
- * アーカイブ記事 609 枚のほかに 300 枚）。その中の h2 { margin: 0 } などが
- * サイドバーの見出しにまで当たり、同じ見た目のはずの一覧ページが
- * «アーカイブの md を読むかどうか» で 2 通りに分かれていた。
+ * アーカイブ記事 609 枚のほかに 300 枚）。
+ *
+ * 漏れた規則のうち、実際に見た目を変えていたのは 2 つだけだった。
+ * .content a { text-decoration: underline } による一覧のリンクの下線と、
+ * h2 { margin: 0 }（と 640px 以下の font-size: 1.15rem）による /archive/ 自身の
+ * 見出し 2 つの余白。どちらも公開中の見た目なので、#123 で漏れを止めたときに
+ * src/styles/archive-taxonomy.module.css と src/pages/archive/index.astro に
+ * クラスや scoped の規則として書き直して保っている。
+ * Issue では «サイドバーの見出し（最新記事など）の余白も変わっている» と
+ * 疑ったが、BlogPostsLink / BlogTagsLink のスコープ付きの規則
+ * （.blog-posts-link[data-astro-cid-*] h2[data-astro-cid-*] など。詳細度 0,3,1）が
+ * 漏れた h2（0,0,1）に常に勝っていて、値は漏れの有無で変わっていなかった。
  *
  * ここでは md を fs で «ただの文字列» として読み、frontmatter だけを
  * 解析する。md をモジュールとして import しないので、LayoutMd.astro は
