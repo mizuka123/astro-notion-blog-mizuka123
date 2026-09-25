@@ -15,8 +15,9 @@ import { archiveImageName, archiveCoverImageName } from './archive-image-file'
  * 別の記事の画像として出ていた）。
  *
  * どの記事が本来の持ち主かは中身を見ないと決められないので、
- * archive-og-image.ts はここに入っている名前を «本文から新しく選ぶ候補» から
- * すべて外す（保守側に倒す）。
+ * archive-og-image.ts はここに入っている名前を、coverImage をそのまま使う
+ * 分岐（#125 から）と «本文から新しく選ぶ候補» の両方からすべて外す
+ * （保守側に倒す）。
  *
  * 索引は全記事を見ないと作れないが、remark プラグインは 1 ファイルずつ
  * 呼ばれ、他の記事を見られない。そこで Astro が md ごとに export する
