@@ -25,6 +25,11 @@ const alt = (block.Image?.Caption ?? [])
   .map((richText: interfaces.RichText) => richText.PlainText)
   .join('')
   .trim()
+
+// ライトボックスのリンクは中身が画像だけなので、alt が空（キャプション
+// 無し）だとリンクに名前が無くなる。変更前は固定の英語の alt がリンク名に
+// なっていたので、alt を空にしたことで後退させないよう aria-label を付ける
+const lightboxLabel = alt ? `${alt}（拡大表示）` : '画像を拡大表示'
 ---
 
 <figure class="image">
@@ -33,7 +38,12 @@ const alt = (block.Image?.Caption ?? [])
       <div>
         <div>
           {ENABLE_LIGHTBOX ? (
-            <a data-fslightbox href={image} data-type="image">
+            <a
+              data-fslightbox
+              href={image}
+              data-type="image"
+              aria-label={lightboxLabel}
+            >
               <img src={image} alt={alt} loading="lazy" />
             </a>
           ) : (
