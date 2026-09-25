@@ -4,6 +4,7 @@ import type { AstroIntegration } from 'astro'
 import sharp from 'sharp'
 import { getDatabase, downloadFiles } from '../lib/notion/client'
 import { coverImageLocalPath } from '../lib/blog-helpers'
+import { safeFetch } from '../lib/safe-fetch'
 import { REQUEST_TIMEOUT_MS } from '../server-constants'
 
 // external のカバーの変換方法は 2 通り。
@@ -35,6 +36,12 @@ import { REQUEST_TIMEOUT_MS } from '../server-constants'
 // マークアップが増えるので採らない
 const WEBP_QUALITY = 90
 const FLAT_COVER_WIDTH = 375
+
+// external のカバーとして取得する画像の大きさの上限。
+// 今のカバー（上の gradients_3.png）は 264,487 バイトだが、external のカバーには
+// Unsplash などの写真の URL も設定でき、原寸の写真は数 MB から十数 MB になりうる。
+// そうした写真でも弾かない大きさとして 20 MB にする。超えたら外部 URL の表示に戻る
+const MAX_COVER_IMAGE_BYTES = 20 * 1024 * 1024
 
 const NOTION_COVER_HOSTS = new Set([
   'app.notion.com',
@@ -85,13 +92,18 @@ const convertExternalCover = async (rawUrl: string): Promise<void> => {
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
   let input: Buffer
   try {
-    const res = await fetch(url.toString(), { signal: controller.signal })
+    // 本文の受信もタイマーの内側で待つ（safeFetch は本文まで読んで返す）。
+    // ヘッダの後で転送が止まったときにビルドが待ち続けないようにするため。
+    // プロトコル・アドレス・リダイレクト・大きさで弾いたときは UnsafeFetchError が
+    // 投げられ、下の catch で外部 URL の表示に戻る（#148）
+    const res = await safeFetch(url, {
+      signal: controller.signal,
+      maxBytes: MAX_COVER_IMAGE_BYTES,
+    })
     if (!res.ok) {
       throw new Error(`HTTP error! status: ${res.status}`)
     }
-    // 本文の受信もタイマーの内側で待つ。ヘッダの後で転送が止まったときに
-    // ビルドが待ち続けないようにするため
-    input = Buffer.from(await res.arrayBuffer())
+    input = res.body
   } finally {
     clearTimeout(timeoutId)
   }
