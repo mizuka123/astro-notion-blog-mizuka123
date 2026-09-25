@@ -35,7 +35,7 @@ const hasVisibleIcon = icon?.Type === 'emoji' || !!iconImageURL
         {icon.Type === 'emoji' ? (
           icon.Emoji
         ) : iconImageURL ? (
-          <img src={iconImageURL} alt="Icon in a callout block" />
+          <img src={iconImageURL} alt="" />
         ) : null}
       </div>
     )

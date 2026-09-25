@@ -34,12 +34,12 @@ const iconImageURL = post
             <img
               src={iconImageURL}
               class="notion-icon"
-              alt="Post title icon in a page link"
+              alt=""
             />
           ) : (
             '📄'
           )}
-          <img src={arrow.src} class="icon-link" alt="Arrow icon of a page link" />
+          <img src={arrow.src} class="icon-link" alt="" />
         </span>
         <span class="text">{post.Title}</span>
       </>
@@ -48,9 +48,9 @@ const iconImageURL = post
     <a class="link">
       <span class="icon">
         🚫
-        <img src={arrow.src} class="icon-link" alt="Arrow icon of a page link" />
+        <img src={arrow.src} class="icon-link" alt="" />
       </span>
-      <span class="text not-found">Post not found</span>
+      <span class="text not-found">記事が見つかりません</span>
     </a>
   )
 }

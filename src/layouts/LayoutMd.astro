@@ -140,7 +140,7 @@ const post: Pick<Post, 'Date' | 'Title'> = {
         {
           coverImageURL && (
             <div class="cover">
-              <img src={coverImageURL} alt="Site cover image" loading="lazy" />
+              <img src={coverImageURL} alt="" loading="lazy" />
             </div>
           )
         }
@@ -168,12 +168,12 @@ const post: Pick<Post, 'Date' | 'Title'> = {
                       </>
                     ) : database.Icon && database.Icon.Type === 'external' ? (
                       <>
-                        <img src={database.Icon.Url} alt="Site icon image" />
+                        <img src={database.Icon.Url} alt="" />
                         {database.Title}
                       </>
                     ) : database.Icon && database.Icon.Type === 'file' ? (
                       <>
-                        <img src={customIconURL} class="custom-icon" alt="Site icon image" />
+                        <img src={customIconURL} class="custom-icon" alt="" />
                         {database.Title}
                       </>
                     ) : (
