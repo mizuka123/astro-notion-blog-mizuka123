@@ -28,10 +28,10 @@
  * h1（2rem / 700）になり、すぐ上のサイト名と同じ大きさの太字が 2 行並ぶ。
  *
  * 注意: これは /404 と /contact/ の «変更前» と一致するが、
- * /category/ 27 枚・/tag/ 271 枚・/tag/ 1 枚の 299 枚とは一致しない。
- * その 299 枚には LayoutMd.astro の <style is:global> が
- * «配信されてしまっている»（src/lib/archive-taxonomy.ts の
- * import.meta.glob がアーカイブの md を引き込むため）。その中の
+ * /category/ 27 枚・/tag/ 271 枚・/tag/ 1 枚の 299 枚とは一致しなかった。
+ * その 299 枚には当時 LayoutMd.astro の <style is:global> が
+ * «配信されてしまっていた»（src/lib/archive-taxonomy.ts の
+ * import.meta.glob がアーカイブの md を引き込んでいたため）。その中の
  * h2 { margin: 0 } が後ろに来るので、変更前の余白は 2.1em ではなく 0、
  * モバイルの font-size も h2,h3 { font-size: 1.15rem } で 1.15rem だった。
  *
@@ -43,7 +43,9 @@
  *   375px 幅では加えて font-size 18.4px → 19.2px、
  *   line-height 23.92px → 24.96px、padding も em 指定なので連動して
  *   18.4px → 19.2px / 20.24px → 21.12px
- * 配信の漏れ自体は別途直す（#123）
+ * 配信の漏れ自体は #123 で止めた（src/lib/archive-frontmatter.ts が
+ * frontmatter だけを読む）。今はこの 299 枚にも LayoutMd.astro の
+ * global CSS は載らない
  */
 .pageHeading {
   margin: 2.1em 0 1em;

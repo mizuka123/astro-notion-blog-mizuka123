@@ -20,6 +20,7 @@
     "_fetch-notion-blocks": "node scripts/retrieve-block-children.cjs"
   },
   "dependencies": {
+    "@astrojs/markdown-remark": "6.0.1",
     "@astrojs/react": "^4.1.2",
     "@astrojs/rss": "^4.0.11",
     "@astrojs/sitemap": "^3.6.0",

@@ -52,14 +52,16 @@ const TARGET = 'h2'
  * 付けておく class。LayoutMd.astro の <style is:global> がこの class で
  * 見た目を当てる。
  *
- * «.content h2» のようにタグ名で当てると、アーカイブ記事以外にも効く。
- * src/lib/archive-taxonomy.ts が import.meta.glob('../pages/archive/*.md')
- * でアーカイブの md をモジュールグラフに引き込むため、md の layout である
+ * «.content h2» のようにタグ名で当てると、アーカイブ記事以外にも効きうる。
+ * 以前は src/lib/archive-taxonomy.ts が import.meta.glob('../pages/archive/*.md')
+ * でアーカイブの md をモジュールグラフに引き込んでいたため、md の layout である
  * LayoutMd.astro の global CSS が /category/ 27 枚・/tag/ 271 枚・
- * /tag/ 1 枚・/archive/ 1 枚にも «配信される»（実測で .content h2 を含む
+ * /tag/ 1 枚・/archive/ 1 枚にも «配信されていた»（実測で .content h2 を含む
  * HTML は 909 枚）。実際に /archive/ の «カテゴリーから探す» と
  * «すべての記事» が 1.2rem/400 から 1rem/700 に変わってしまっていた。
- * class にすれば、CSS が配信されてもアーカイブ本文以外には当たらない
+ * 漏れは #123 で止めた（src/lib/archive-frontmatter.ts）が、md を
+ * モジュールとして import し直すと黙って戻る。
+ * class にしておけば、CSS が配信されてもアーカイブ本文以外には当たらない
  */
 const CLASS_NAME = 'archive-body-heading'
 

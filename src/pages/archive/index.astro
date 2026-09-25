@@ -1,5 +1,4 @@
 ---
-import type { MarkdownInstance } from 'astro'
 import {
   getPosts,
   getRankedPosts,
@@ -11,18 +10,13 @@ import {
   compareSlugs,
   getCategoryDisplayName,
 } from '../../lib/archive-taxonomy'
+import { archiveEntries } from '../../lib/archive-frontmatter'
 import { getNavLink, stripBasePath } from '../../lib/blog-helpers'
 import Layout from '../../layouts/Layout.astro'
 import BlogPostsLink from '../../components/BlogPostsLink.astro'
 import BlogTagsLink from '../../components/BlogTagsLink.astro'
 import styles from '../../styles/blog.module.css'
 import taxonomyStyles from '../../styles/archive-taxonomy.module.css'
-
-interface ArchiveFrontmatter {
-  title: string
-  date: string
-  draft?: boolean
-}
 
 const [rankedPosts, tags, recentPosts] = await Promise.all([
   getRankedPosts(),
@@ -32,21 +26,13 @@ const [rankedPosts, tags, recentPosts] = await Promise.all([
 
 const siteTitle = 'アーカイブ一覧'
 
-// import.meta.glob はパスをキーにしたオブジェクトを返すため Object.values で配列化する
-const allPosts = Object.values(
-  import.meta.glob<MarkdownInstance<ArchiveFrontmatter>>('./*.md', {
-    eager: true,
-  })
-)
-// Astro.glob は 0 件マッチでビルドを失敗させていたが、import.meta.glob は
-// 空オブジェクトを返すだけなので、同じ安全網を明示的に張り直す
-if (allPosts.length === 0) {
-  throw new Error(
-    "src/pages/archive に './*.md' がひとつもマッチしませんでした。アーカイブ記事の配置を確認してください。"
-  )
-}
-
-const nonDraftPosts = allPosts.filter((post) => !post.frontmatter.draft)
+// md を import.meta.glob の eager で «モジュールとして» 読むと、md の layout
+// である LayoutMd.astro の global CSS がこのページにも載る（#123）。
+// frontmatter だけを読む archive-frontmatter.ts から受け取る。
+// 0 件のときは向こうが例外でビルドを止める。
+// sort は元の配列を並べ替えるので、共有の archiveEntries を直接並べ替えないよう
+// filter で作った新しい配列を並べる
+const nonDraftPosts = archiveEntries.filter((post) => !post.frontmatter.draft)
 const sortedPosts = nonDraftPosts.sort((a, b) => {
   const aDate = new Date(a.frontmatter.date)
   const bDate = new Date(b.frontmatter.date)
@@ -146,7 +132,7 @@ const description = `アーカイブ記事 ${sortedPosts.length} 件をすべて
       {
         sortedPosts.map((post) => (
           <li>
-            <a href={getNavLink(stripBasePath(post.url ?? ''))}>
+            <a href={getNavLink(stripBasePath(post.url))}>
               {post.frontmatter.title}
             </a>
           </li>
