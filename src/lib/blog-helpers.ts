@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto'
+import fs from 'node:fs'
 import { BASE_PATH, REQUEST_TIMEOUT_MS } from '../server-constants'
 import type {
   Block,
@@ -49,6 +51,31 @@ export const ogImageLocalPath = (url: URL): string => {
 }
 
 /**
+ * external のカバー画像を WebP に変換して置くときのファイル名。
+ *
+ * URL から決まるようにしてあるので、Notion でカバーを差し替えれば別のファイルに
+ * なり、古い変換結果を参照し続けることがない。external の URL は
+ * app.notion.com のものとは限らず（Unsplash などクエリ付きのこともある）、
+ * パスの末尾から名前を作ると衝突や使えない文字が出うるため、URL 全体の
+ * sha256 の先頭 16 桁を使う
+ */
+const coverImageName = (url: string): string =>
+  `${createHash('sha256').update(url).digest('hex').slice(0, 16)}.webp`
+
+/**
+ * 変換した external のカバー画像の URL パス。filePath() と同じく BASE_PATH 込み
+ */
+const coverImageUrlPath = (url: string): string =>
+  pathJoin(BASE_PATH, `/notion/cover/${coverImageName(url)}`)
+
+/**
+ * 変換した external のカバー画像のディスク上のパス。BASE_PATH は付けない。
+ * 書き込むのは src/integrations/cover-image-downloader.ts
+ */
+export const coverImageLocalPath = (url: string): string =>
+  `public/notion/cover/${coverImageName(url)}`
+
+/**
  * データベースのカバー画像とカスタムアイコンの URL を、表示に使える形で返す。
  *
  * 取得できなかったものは undefined を返し、呼び出し側で出し分ける。
@@ -60,7 +87,12 @@ export const getDatabaseImageURLs = (
   let coverImageURL: string | undefined
   if (database.Cover) {
     if (database.Cover.Type === 'external') {
-      coverImageURL = database.Cover.Url
+      // ビルド時に cover-image-downloader が WebP に変換して置いていれば、
+      // 自サイトから配信する。無ければ（取得や変換に失敗した、または
+      // build:start が走らない astro dev）従来どおり外部 URL を使う
+      coverImageURL = fs.existsSync(coverImageLocalPath(database.Cover.Url))
+        ? coverImageUrlPath(database.Cover.Url)
+        : database.Cover.Url
     } else if (database.Cover.Type === 'file') {
       try {
         coverImageURL = filePath(new URL(database.Cover.Url))
