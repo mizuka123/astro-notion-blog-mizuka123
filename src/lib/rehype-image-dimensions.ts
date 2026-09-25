@@ -31,8 +31,11 @@ export default function rehypeImageDimensions() {
           const filePath = archiveImageFilePath(child.properties?.src)
           // 記事側が片方でも書いているなら何もしない。
           // 足りない方だけを埋めると、記事が意図した比率と混ざって
-          // 表示が歪む方が困る（現状 /archive/images/ を指す生 <img> は
-          // 0 件なので、この分岐に入る入力は今のところ存在しない）
+          // 表示が歪む方が困る（ここに来るのは markdown の画像だけで、
+          // それは寸法を出力しないため、この分岐に入る入力は今のところ
+          // 存在しない。生 HTML の <img> は rehypeRaw より前のここからは
+          // 見えないので、remark-archive-raw-image-dimensions.ts が
+          // 同じ規則で寸法を足している）
           const props = child.properties
           if (
             filePath &&
