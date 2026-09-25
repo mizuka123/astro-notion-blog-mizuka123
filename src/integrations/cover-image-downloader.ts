@@ -6,16 +6,50 @@ import { getDatabase, downloadFiles } from '../lib/notion/client'
 import { coverImageLocalPath } from '../lib/blog-helpers'
 import { REQUEST_TIMEOUT_MS } from '../server-constants'
 
-// external のカバーを変換するときの WebP の品質。
+// external のカバーの変換方法は 2 通り。
+//
+// Notion 標準のグラデーションと単色（isNotionFlatCover）は、幅 FLAT_COVER_WIDTH に
+// 縮小して（縦横比は保つ。カーネルは sharp の既定の lanczos3）ロスレスの WebP にし、
+// 表示の大きさへの拡大はブラウザに任せる。
+// #147 では寸法そのままの quality 90 の WebP にしていた。元画像との PSNR が 50 dB 程度で
+// 画素の最大誤差も小さいので見分けにくいと判断したが、緩やかなグラデーションでは、
+// 非可逆の WebP がブロック単位で近似した階調の段差が縦の縞とムラとして見えた（#149）。
 // 今のカバー（https://app.notion.com/images/page-cover/gradients_3.png、
-// PNG 1500x1500、264,487 バイト）を sharp 0.33.5 で変換して元画像と比べた実測
-// （2026-09-25。quality 90 の値はビルドで作られたファイルで測ったもの）:
-//   - quality 80: 11,644 バイト、PSNR 49.6 dB、画素ごとの最大誤差 5/255
-//   - quality 90: 16,644 バイト、PSNR 50.5 dB、画素ごとの最大誤差 4/255
-// 80 との差は 5 KB 程度で、全ページの最上部に出る画像なので誤差の小さい 90 を採る。
-// AVIF（quality 70 で 4,473 バイト）はさらに小さいが、非対応ブラウザ向けに
-// <picture> が要り、全ページのマークアップが増えるので採らない
+// PNG 1500x1500、264,487 バイト）を sharp 0.33.5 で変換し、表示と同じ幅 1920px・
+// 高さ 216px（縦位置 60% で切り抜き）に拡大して、元の PNG を同じ手順で拡大・切り抜いた
+// ものと比べた実測（2026-09-25。拡大の補間は nearest / linear / cubic の 3 通り）:
+//   - 1500px ロスレス: 269,116 バイト（元の PNG より大きい）
+//   - 375px ロスレス: 38,114 バイト、画素ごとの最大誤差 1/255
+//   - 250px ロスレス: 20,404 バイト、最大誤差 1/255（3 通りとも）
+//   - 150px ロスレス: 8,836 バイト、最大誤差 2/255（nearest と cubic）
+//   - 1500px quality 90（#147）: 16,644 バイト、最大誤差 3/255（縞が見える）
+// 250px は目で見比べても元の PNG と区別がつかなかった。
+//
+// それ以外（写真など。Notion 標準でも nasa_ や met_ などは写真）は、寸法そのままの
+// quality 90 の WebP にする。250px に縮小すると細部が潰れるため。
+// AVIF はさらに小さいが、非対応ブラウザ向けに <picture> が要り、全ページの
+// マークアップが増えるので採らない
 const WEBP_QUALITY = 90
+const FLAT_COVER_WIDTH = 250
+
+const NOTION_COVER_HOSTS = new Set([
+  'app.notion.com',
+  'www.notion.so',
+  'notion.so',
+])
+const NOTION_FLAT_COVER_PATH_PREFIXES = [
+  '/images/page-cover/gradients_',
+  '/images/page-cover/solid_',
+]
+
+/**
+ * Notion 標準のグラデーションか単色のカバーか。URL のホストとパスで判定する
+ */
+export const isNotionFlatCover = (url: URL): boolean =>
+  NOTION_COVER_HOSTS.has(url.hostname) &&
+  NOTION_FLAT_COVER_PATH_PREFIXES.some((prefix) =>
+    url.pathname.startsWith(prefix)
+  )
 
 // Notion のサーバーはこの画像に Cache-Control を付けず（ETag と
 // Last-Modified だけ。2026-09-25 実測）、キャッシュの期間がブラウザの推測任せになる。
@@ -27,9 +61,13 @@ const WEBP_QUALITY = 90
 // 仮にそこで入らなくても、build:done の public-notion-copier が public/notion を
 // dist/notion にコピーする（既に同じサイズのファイルがあれば何もしない）。
 //
-// 寸法はそのまま（縮小も切り抜きもしない）。表示は CSS の
-// object-fit: cover / object-position: center 60% でブラウザが切り抜いており、
-// 寸法を変えると見え方が変わりうるため。1500px は大きい画面での表示幅にほぼ見合う。
+// 切り抜きはしない。表示は CSS の object-fit: cover / object-position: center 60% で
+// ブラウザが切り抜いており、縦横比を変えると見え方が変わりうるため。
+// グラデーションと単色の縮小は縦横比を保つので、切り抜かれる範囲は変わらない。
+//
+// 毎回のビルドで取得・変換し、同じファイル名に上書きする。変換の方法を変えたときに、
+// 前のビルドの変換結果（public/notion/cover/ に残る）がそのまま使われることはない。
+// ただし取得や変換に失敗した回は上書きされず、残っている前の結果が使われる。
 //
 // 失敗しても投げない。getDatabaseImageURLs() は変換済みのファイルが無ければ
 // 従来どおり外部 URL を返すので、表示は元に戻るだけで済む。Notion の画像サーバーの
@@ -59,7 +97,13 @@ const convertExternalCover = async (rawUrl: string): Promise<void> => {
   // ファイルが「変換済み」として参照され dist に入るのを避けるため
   const tmp = `${dest}.tmp`
   try {
-    await sharp(input).webp({ quality: WEBP_QUALITY }).toFile(tmp)
+    const image = sharp(input)
+    const converted = isNotionFlatCover(url)
+      ? image
+          .resize({ width: FLAT_COVER_WIDTH, withoutEnlargement: true })
+          .webp({ lossless: true })
+      : image.webp({ quality: WEBP_QUALITY })
+    await converted.toFile(tmp)
     fs.renameSync(tmp, dest)
   } finally {
     fs.rmSync(tmp, { force: true })
