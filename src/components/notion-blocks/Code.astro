@@ -39,8 +39,8 @@ const grammer =
       ) : (
         <>
           <div>
-            <button class="copy" data-code={code} data-done-text="Copied!">
-              Copy
+            <button class="copy" data-code={code} data-done-text="コピーしました">
+              コピー
             </button>
           </div>
           <pre><code set:html={Prism.highlight(code, grammer, language)} /></pre>
