@@ -12,6 +12,7 @@ import FileIconDownloader from './src/integrations/file-icon-downloader';
 import OgImageGenerator from './src/integrations/og-image-generator';
 import PublicNotionCopier from './src/integrations/public-notion-copier';
 import rehypeArchiveHeadings from './src/lib/rehype-archive-headings';
+import rehypeArchiveSrcset from './src/lib/rehype-archive-srcset';
 import rehypeImageDimensions from './src/lib/rehype-image-dimensions';
 import remarkArchiveDescription from './src/lib/remark-archive-description';
 import remarkArchiveImages from './src/lib/remark-archive-images';
@@ -152,11 +153,15 @@ export default defineConfig({
     // 変えないため、3 つの順序はどれでも結果は同じ。
     // rehypeArchiveHeadings が触るのは見出しのタグ名と className で、
     // 他の 3 つは <p> <a> <div> と <img> しか触らない。触る集合が
-    // 交わらないので、これもどこに置いても結果は変わらない
+    // 交わらないので、これもどこに置いても結果は変わらない。
+    // rehypeArchiveSrcset は画像に srcset と sizes を足すだけで（#134）、
+    // 寸法は width / height を読まずに自分でファイルから読むので、
+    // これも順序に依存しない
     rehypePlugins: [
       rehypeProductBox,
       rehypeLazyImages,
       rehypeImageDimensions,
+      rehypeArchiveSrcset,
       rehypeArchiveHeadings,
     ],
     // 本文から meta description を作る。frontmatter に description の
