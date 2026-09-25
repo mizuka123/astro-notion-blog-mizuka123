@@ -175,7 +175,7 @@ if (post.FeaturedImage && post.FeaturedImage.Url) {
     </div>
   </div>
 
-  <div slot="aside">
+  <Fragment slot="aside">
     <BlogPostsLink
       heading="同じカテゴリー記事"
       posts={postsHavingSameTag.filter(
@@ -185,5 +185,5 @@ if (post.FeaturedImage && post.FeaturedImage.Url) {
     <BlogPostsLink heading="おすすめ記事" posts={rankedPosts} />
     <BlogPostsLink heading="最新記事" posts={recentPosts} />
     <BlogTagsLink heading="カテゴリー" tags={tags} />
-  </div>
+  </Fragment>
 </Layout>
