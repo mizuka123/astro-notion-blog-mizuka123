@@ -176,4 +176,32 @@ const description = `アーカイブ記事 ${sortedPosts.length} 件をすべて
     font-size: inherit;
     line-height: inherit;
   }
+
+  /* 記事一覧と「タグから探す」のリンクの下線（#123）。
+     src/layouts/LayoutMd.astro の .content a { text-decoration: underline } が
+     漏れて当たっていたもので、#123 で漏れを止めた後も公開中の見た目を保つ。
+     カテゴリー一覧の下線は src/styles/archive-taxonomy.module.css の
+     .taxonomyLinks a で当てている */
+  ul.post-list a,
+  p.tag-index a {
+    text-decoration: underline;
+  }
+
+  /* 「カテゴリーから探す」「すべての記事」の h2（#123）。
+     Layout.astro の h2 は margin: 2.1em 0 1em だが、このページでは
+     src/layouts/LayoutMd.astro の h2 { margin: 0 } と、640px 以下の
+     h2 { font-size: 1.15rem } が漏れて当たっていた。#123 で漏れを止めた
+     後も公開中の見た目を保つため、同じ値をここに書く。
+     このページの <style> は scoped なので h2[data-astro-cid-*] に変換され、
+     このテンプレートが直接出す h2（この 2 つ）にしか当たらない。サイドバーの
+     h2 は別のコンポーネントのもので対象外。h2 に class を足さないのは、
+     マークアップを変えずに «漏れていたときの見た目» だけを戻すため */
+  h2 {
+    margin: 0;
+  }
+  @media (max-width: 640px) {
+    h2 {
+      font-size: 1.15rem;
+    }
+  }
 </style>
