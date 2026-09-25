@@ -1,17 +1,29 @@
 ---
-import { RichText } from '../../lib/interfaces.ts'
+import * as interfaces from '../../lib/interfaces.ts'
+import RichText from './RichText.astro'
 
 export interface Props {
-  richTexts: RichText[]
+  richTexts: interfaces.RichText[]
 }
 
 const { richTexts } = Astro.props
 ---
 
 {
-  richTexts.length > 0 && richTexts[0].Text.Content && (
+  /*
+   * 以前は先頭の要素の Text.Content だけを出していたため、先頭がメンションや
+   * 数式（Text が無い）だとビルドが落ち、リンクや太字で区切られた 2 つ目以降の
+   * 要素は表示されなかった。画像の alt（Image.astro）は全要素の PlainText を
+   * つないで作るので、表示と alt の文字も食い違っていた。本文のブロックと同じ
+   * RichText で全要素を描けば、装飾も本文と揃い、文字の並びも alt と一致する
+   */
+  richTexts.length > 0 && (
     <div class="caption">
-      <div>{richTexts[0].Text.Content}</div>
+      <div>
+        {richTexts.map((richText: interfaces.RichText) => (
+          <RichText richText={richText} />
+        ))}
+      </div>
     </div>
   )
 }
