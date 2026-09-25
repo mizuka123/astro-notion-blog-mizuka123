@@ -146,6 +146,35 @@ export default defineConfig({
   site: getSite(),
   base: BASE_PATH,
   markdown: {
+    // Shiki は 1 行のトークン化が tokenizeTimeLimit（既定 500ms）を超えると、
+    // その行の残りを色の無い 1 トークンにして打ち切る。ビルドで最初に出てくる
+    // 言語の最初の行は正規表現のコンパイルを抱えていて遅く（archive/5093 の
+    // 1 つ目の php で、何もしていない状態でも約 260ms）、ビルドの負荷次第で
+    // 500ms を超えて途中から色が付かなくなる。ハイライトの結果がビルドごとに
+    // 揺れていた（#160）のはこのため。
+    // Astro の shikiConfig には時間制限を渡す項目が無いので、codeToHast に
+    // 渡るオプションを preprocess で書き換えて制限を外す（0 = 無制限）。
+    // Astro は highlight のたびにオプションのオブジェクトを新しく作るので、
+    // 書き換えは他の呼び出しに漏れない。
+    // 代償: 時間制限は、正規表現がいつまでも終わらない事故への Shiki の保険で、
+    // 無制限にすると、そうした行があればビルドがそこで止まる。
+    // それでも制限を «引き上げる» のではなく «外す» のは、有限の制限だと
+    // 超えたときに黙って色分けが崩れる（#160 の問題そのもの）から。
+    // 止まれば気づけるが、黙って崩れると気づけない。
+    // 対象のアーカイブ記事のコードブロックは 6 つ（php 3、html 2、shell 1）で、
+    // 中身は固定（アーカイブ記事は増えない）。
+    // Notion 記事のコードブロック（src/components/notion-blocks/Code.astro）は
+    // Prism で色付けしていて、この設定の影響を受けない
+    shikiConfig: {
+      transformers: [
+        {
+          name: 'no-tokenize-time-limit',
+          preprocess(_code, options) {
+            options.tokenizeTimeLimit = 0;
+          },
+        },
+      ],
+    },
     // カエレバの商品ボックスがばらけた <p> のままだと、
     // 自動広告が商品名と購入リンクの間に入る。1 つの要素にまとめる。
     // そのうえで自前の画像に loading="lazy" と width/height を付ける。
