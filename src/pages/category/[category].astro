@@ -50,33 +50,32 @@ const { category } = Astro.params
 const { posts, indexable, thin } = Astro.props
 
 /*
- * noindex と noAds を渡す条件は «別々» で、同じではない。
+ * noindex、noAds、noAffiliate は、それぞれ «別の» 条件で渡している。
  *
- * Google Publisher Policies の Inventory value には
- * "Google-served ads on screens without publisher-content" という項目があり、
- * publisher-content の無い画面に加えて "with low-value content" の画面と
- * "used for alerts/navigation" の画面への広告配信も禁じている。
- * 記事リンクが 1〜2 本あるだけのページ（thin）は、まさに low-value content
- * かつ navigation にあたる。実測で dist/category/pc-web/index.html には
- * adsbygoogle が 1 件入っていた。
- * 違反はそのページの配信停止にとどまらず、繰り返せばアカウント単位の措置。
+ * noAds（Google の広告を止める）は全ページで渡す（Issue #113）。
+ * Google Publisher Policies の "Google-served ads on screens without
+ * publisher-content" は、publisher-content の無い画面への Google 配信広告を
+ * 禁じている。同ポリシーの Glossary は publisher-content を
+ * "... but not including ads, site navigation and related content links."
+ * と定義しており、このページの中身である記事へのリンクの並びは
+ * related content links にあたる。記事が何本あっても publisher-content には
+ * 数えられない。
+ * #112 では記事リンクが 1〜2 本のページ（thin）だけを止め、残りは
+ * 同種の /archive/ や /posts/page/N と扱いをそろえるために広告を出したまま
+ * にしていた。#113 で一覧ページ全体の広告を止めると決めたので、広告の判断に
+ * thin は使わなくなった。
  *
- * noAds を indexable ではなく thin で判断しているのはここが理由。
- * 記事集合が他と完全に同じで index から外した 4 枚（記事 4 / 5 / 3 / 3 件）は
- * 薄くないので広告を止めない。indexable で判断すると «一字一句同じ相方は
- * 広告を出しているのに、こちらは出さない» という説明の付かない状態になる。
+ * noAffiliate（ValueCommerce のスクリプトを止める）は thin のページにだけ渡す。
+ * #113 より前は noAds が広告とアフィリエイトを両方止めていて、thin の
+ * ページではどちらも出ていなかった。上の条文は Google の広告の話で
+ * アフィリエイトは対象外なので、#113 で 2 つを分け、一覧ページでは
+ * アフィリエイトを残すことにした（運営者の判断）。thin のページは
+ * 分ける前の状態（アフィリエイトも無し）を保つ。
  *
- * SiteHead.astro 側で noindex から noAds を導かないのは、2 つが別の判断で
- * あることを壊さないため（404 ページは URL が実在しないから noindex で、
- * 行き止まりだから noAds）。ここは «同じ判断から両方が出ている» ので、
- * ページ側で 2 つとも渡す形にしてある。
- *
- * 逆に薄くないページでは広告を出したままにする。
- * 判断が割れるのは、同じ «記事へのリンクが並ぶだけのページ» である
- * /archive/（リンク 609 本）と /posts/page/N が元から広告を出しているから。
- * そちらに手を入れるかどうかは本 PR の範囲外で、ここだけ先に消すと
- * 「同種のページで扱いが違う」状態を新しく作ることになる。
- * 薄いページを止めるのが目的なので、薄い側だけを止める
+ * noindex は indexable で判断する（src/lib/archive-taxonomy.ts）。検索結果に
+ * 載せるかどうかは広告とは別の判断で、#113 でも変えていない。
+ * SiteHead.astro 側で noindex から noAds を導かないのも、2 つが別の判断
+ * だから（index 対象のこのページでも広告は止める）
  */
 
 const displayName = getCategoryDisplayName(category ?? '')
@@ -107,7 +106,8 @@ const [rankedPosts, tags, recentPosts] = await Promise.all([
   description={description}
   path={`/category/${category}`}
   noindex={!indexable}
-  noAds={thin}
+  noAds
+  noAffiliate={thin}
 >
   <div slot="main" class={styles.main}>
     {/* このページの主題なので h1。変更前は h2 で、h1 はサイト名だった

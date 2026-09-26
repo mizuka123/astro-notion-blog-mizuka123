@@ -45,11 +45,11 @@ export interface Props {
 const { tag } = Astro.params
 const { posts, indexable, thin } = Astro.props
 
-// noindex は indexable、noAds は thin と «別々の» 条件で渡している。
-// 理由は src/pages/category/[category].astro のコメントを参照
-// （薄いページへの広告配信が Google Publisher Policies の
-// Inventory value に触れる。一方 «重複で index から外しただけ» の
-// ページは薄くないので広告は止めない）
+// noindex は indexable、noAffiliate は thin で判断し、noAds は全ページで
+// 渡している（Issue #113）。理由は src/pages/category/[category].astro の
+// コメントを参照（中身が記事へのリンクの並びで、Google Publisher Policies の
+// Glossary の定義では publisher-content に数えられない。アフィリエイトは
+// thin のページだけ、#113 より前の «出さない» 状態を保つ）
 
 // ページごとに書き分ける。271 ページが同じ説明文だと検索エンジンからは
 // 区別が付かない（#99 と同じ方針）
@@ -72,7 +72,8 @@ const [rankedPosts, tags, recentPosts] = await Promise.all([
   description={description}
   path={`/tag/${tag}`}
   noindex={!indexable}
-  noAds={thin}
+  noAds
+  noAffiliate={thin}
 >
   <div slot="main" class={styles.main}>
     {/* h1 にする理由と見た目の据え置きは

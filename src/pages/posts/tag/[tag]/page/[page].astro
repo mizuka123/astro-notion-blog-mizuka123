@@ -89,12 +89,21 @@ const title = `「${tag}」タグの記事一覧 ${page}/${numberOfPages} ペー
 // サイト共通の 1 文を使い回すページがまた増える。件数と «何件目から
 // 何件目か» を入れて、同じタグの 1 ページ目とも別ページとも重ならない文にする
 const description = `「${tag}」タグが付いた記事 ${allTaggedPosts.length} 件のうち、新しい順に ${firstPostNumber}〜${lastPostNumber} 件目（${page}/${numberOfPages} ページ目）です。`
+
+// 広告（noAds）を出さない。中身のほとんどが記事へのリンクの並びで、
+// Google Publisher Policies の "Google-served ads on screens without
+// publisher-content" に当たるおそれがあるため（Issue #113）。同ポリシーの
+// Glossary は publisher-content を「site navigation and related content
+// links は含まない」と定義していて、一覧のリンクは related content links に
+// あたる。アフィリエイト（noAffiliate）は運営者の判断で残す。
+// 詳しくは src/components/SiteHead.astro の Props のコメント
 ---
 
 <Layout
   title={title}
   description={description}
   path={`/posts/tag/${tag}/page/${page}`}
+  noAds
 >
   <div slot="main" class={styles.main}>
     <header>

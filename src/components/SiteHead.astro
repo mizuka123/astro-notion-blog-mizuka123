@@ -24,18 +24,33 @@ export interface Props {
   // noindex は「検索結果に載せない」、noCanonical は「正規 URL を名乗らない」で、
   // 404 ページだけがたまたま両方に当てはまる
   noCanonical?: boolean
-  // 広告とアフィリエイトのスクリプトを出さない。
-  // Google の Publisher Policies は «エラーページへの広告掲載を明確に禁止»
-  // している（"Ads should not be placed on 'dead end' or no content screens
-  // (e.g., Thank You, Exit, Error pages, etc.)"）。同じ Inventory value の
-  // 項目が "with low-value content" の画面も禁じており、記事リンクが
-  // 1〜2 本あるだけのタクソノミーページはこちらに当たる。違反はそのページの
+  // Google の広告（AdSense の adsbygoogle.js）を出さない。
+  // 根拠は Google Publisher Policies の Inventory value の項目
+  // "Google-served ads on screens without publisher-content"。
+  // publisher-content の無い画面への Google 配信広告を禁じ、例として
+  // «dead end» やコンテンツの無い画面（Thank You、Exit、Error のページ）を
+  // 挙げている。同ポリシーの Glossary は publisher-content を
+  // "... but not including ads, site navigation and related content links."
+  // と定義していて、記事へのリンクが中身のほとんどを占める一覧ページ
+  // （/、/posts/page/N、/posts/tag/、/archive/、/tag/、/category/）は、
+  // リンクが related content links にあたり publisher-content に数えられない。
+  // そこで 404 に加えて一覧ページ全体に渡している（Issue #113。#112 では
+  // 記事が 1〜2 本のタクソノミーページだけだった）。違反はそのページの
   // 配信停止、繰り返せばアカウント単位の措置につながる。
   // noindex とは別にしてあるのは、「インデックスさせない」と「広告を出さない」が
-  // 別の判断だから。片方だけ必要になったときに巻き添えで壊れないようにする。
-  // «同じ判断から両方渡す» ページ（薄いタクソノミーページ）は、呼び出し側で
-  // 2 つとも渡している。ここで noindex から導かないこと
+  // 別の判断だから。一覧ページは index 対象のまま広告だけを止めている。
+  // ここで noindex から導かないこと
   noAds?: boolean
+  // ValueCommerce のスクリプト（LinkSwitch の vc_pid と vcdal.js、MyLinkBox の
+  // mylinkbox.js）を出さない。
+  // 以前は noAds 1 つで広告とアフィリエイトを両方止めていた。#113 で分けたのは、
+  // 上の条文が «Google 配信の広告» についてのもので、アフィリエイトの
+  // スクリプトは対象外だから。一覧ページではアフィリエイトを残す、というのが
+  // 運営者の判断（#113）で、一覧ページには noAds だけを渡す。
+  // これを渡しているのは、分ける前から広告もアフィリエイトも出していなかった
+  // ページ（404 と、記事が 1〜2 本のタクソノミーページ）だけで、
+  // 分ける前の状態をそのまま保つためのもの
+  noAffiliate?: boolean
   // 記事ページからだけ渡す公開日（'YYYY-MM-DD' か ISO 8601）。
   // これが入っているページだけ記事用の構造化データを出す。
   // 「記事かどうか」を path の形で判定しないのは、一覧も記事と同じ
@@ -90,6 +105,7 @@ const {
   noindex = false,
   noCanonical = false,
   noAds = false,
+  noAffiliate = false,
   articleDate = '',
   articleImage = '',
   katexCss = false,
@@ -240,10 +256,13 @@ const articleJsonLdText = articleJsonLd
     var ではなく window に直接代入しているのは、外部スクリプトが読む
     グローバルであることを明示するため（トップレベルの var と等価）。
     vc_pid の定義が先に実行される必要があるので、2 つの順序は変えないこと
+
+    広告（adsbygoogle.js）とは別の条件で出す。noAds と noAffiliate を
+    分けた理由は Props のコメントを参照（#113）
   */
 }
 {
-  !noAds && (
+  !noAffiliate && (
     <Fragment>
       <script is:inline type="text/javascript">
         window.vc_pid = '892700549'
@@ -260,6 +279,12 @@ const articleJsonLdText = articleJsonLd
         src="//mlb.valuecommerce.com/mylinkbox.js"
         async
       />
+    </Fragment>
+  )
+}
+{
+  !noAds && (
+    <Fragment>
       <script
         async
         src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8748150415175448"

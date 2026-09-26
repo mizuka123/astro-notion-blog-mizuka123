@@ -71,12 +71,21 @@ const indexableTagCount = [...archiveTags.values()].filter(
 // /tag/ に合わせ、件数を入れて «どのページか» が文だけで分かるようにする。
 // 数字はすべて上で数えた実値（実測: 記事 609 件 / カテゴリー 27 件）
 const description = `アーカイブ記事 ${sortedPosts.length} 件をすべて並べた一覧です。カテゴリー ${categoryLinks.length} 件からも辿れます。`
+
+// 広告（noAds）を出さない。中身のほとんどが記事へのリンクの並びで、
+// Google Publisher Policies の "Google-served ads on screens without
+// publisher-content" に当たるおそれがあるため（Issue #113）。同ポリシーの
+// Glossary は publisher-content を「site navigation and related content
+// links は含まない」と定義していて、一覧のリンクは related content links に
+// あたる。アフィリエイト（noAffiliate）は運営者の判断で残す。
+// 詳しくは src/components/SiteHead.astro の Props のコメント
 ---
 
 <Layout
   title={siteTitle}
   description={description}
   path="/archive"
+  noAds
 >
   <div slot="main" class={styles.main}>
     {/*

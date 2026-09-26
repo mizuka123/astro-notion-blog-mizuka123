@@ -50,9 +50,17 @@ const [rankedPosts, tags, recentPosts] = await Promise.all([
   getAllTags(),
   getPosts(5),
 ])
+
+// 広告（noAds）を出さない。中身のほとんどが記事へのリンクの並びで、
+// Google Publisher Policies の "Google-served ads on screens without
+// publisher-content" に当たるおそれがあるため（Issue #113）。同ポリシーの
+// Glossary は publisher-content を「site navigation and related content
+// links は含まない」と定義していて、一覧のリンクは related content links に
+// あたる。アフィリエイト（noAffiliate）は運営者の判断で残す。
+// 詳しくは src/components/SiteHead.astro の Props のコメント
 ---
 
-<Layout title={title} description={description} path="/tag">
+<Layout title={title} description={description} path="/tag" noAds>
   <div slot="main" class={styles.main}>
     {/* h1 にする理由と見た目の据え置きは
         src/pages/category/[category].astro と同じ（Issue #98） */}
