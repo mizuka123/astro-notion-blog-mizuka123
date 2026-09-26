@@ -27,9 +27,19 @@ const [posts, rankedPosts, tags, numberOfPages, recentPosts] = await Promise.all
   getNumberOfPages(),
   getPosts(5),
 ])
+
+// 広告（noAds）を出さない。中身のほとんどが記事へのリンクの並びで、
+// Google Publisher Policies の "Google-served ads on screens without
+// publisher-content" に当たるおそれがあるため（Issue #113）。同ポリシーの
+// Glossary は publisher-content を「site navigation and related content
+// links は含まない」と定義していて、一覧のリンクは related content links に
+// あたる。アフィリエイト（noAffiliate）は運営者の判断で残す。
+// 詳しくは src/components/SiteHead.astro の Props のコメント。
+// トップページは AdSense の設定で既にページ除外されているが、サイト側でも
+// ほかの一覧ページとそろえる
 ---
 
-<Layout>
+<Layout noAds>
   <div slot="main" class={styles.main}>
     {
       posts.length === 0 ? (

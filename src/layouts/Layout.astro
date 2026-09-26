@@ -25,8 +25,13 @@ export interface Props {
   // canonical と og:url を出さない。SiteHead に素通しする。
   // URL が固定されない 404 ページ用で、渡しているのは src/pages/404.astro だけ
   noCanonical?: boolean
-  // 広告とアフィリエイトのスクリプトを出さない。SiteHead に素通しする
+  // Google の広告（AdSense の adsbygoogle.js）を出さない。SiteHead に素通しする。
+  // アフィリエイトのスクリプトは止めない（それは下の noAffiliate の役目）。
+  // #113 で分けた。理由は SiteHead.astro の Props のコメントを参照
   noAds?: boolean
+  // ValueCommerce のスクリプトを出さない。SiteHead に素通しする。
+  // 渡しているのは 404 と、記事が 1〜2 本のタクソノミーページだけ
+  noAffiliate?: boolean
   // 記事ページ（/posts/[slug]）だけが渡す公開日。SiteHead に素通しする。
   // 渡した場合だけ記事用の JSON-LD が出る。一覧系（index / posts/page /
   // posts/tag）と 404 は渡さないので、記事用の型が付くことはない
@@ -52,6 +57,7 @@ const {
   noindex = false,
   noCanonical = false,
   noAds = false,
+  noAffiliate = false,
   articleDate = '',
   articleImage = '',
   katexCss = false,
@@ -89,6 +95,7 @@ const SiteTitleTag = path === '/' ? 'h1' : 'p'
       noindex={noindex}
       noCanonical={noCanonical}
       noAds={noAds}
+      noAffiliate={noAffiliate}
       articleDate={articleDate}
       articleImage={articleImage}
       katexCss={katexCss}

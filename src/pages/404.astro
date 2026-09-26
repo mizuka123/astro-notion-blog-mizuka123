@@ -14,10 +14,12 @@ import styles from '../styles/blog.module.css'
 //
 // 読者の行き止まりにしないよう、サイドバーは他のページと同じものを出す。
 //
-// noindex / noCanonical / noAds を 3 つとも渡すのはこのページだけ。それぞれ
-// 理由が違う: 検索結果に出す意味が無い（noindex）、どの URL で配信されるか
-// 決まっていないので「この URL が正規」と名乗れない（noCanonical）、
+// noindex / noCanonical / noAds / noAffiliate を 4 つとも渡すのはこのページだけ。
+// それぞれ理由が違う: 検索結果に出す意味が無い（noindex）、どの URL で
+// 配信されるか決まっていないので「この URL が正規」と名乗れない（noCanonical）、
 // 行き止まりの画面への広告配信が Google Publisher Policies に触れる（noAds）。
+// noAffiliate は #113 で noAds から分けたもので、分ける前の «アフィリエイトの
+// スクリプトも出さない» 状態を保つために渡している。
 // /category/ と /tag/ の薄いページは URL が実在するので noCanonical は渡さない
 const [rankedPosts, tags, recentPosts] = await Promise.all([
   getRankedPosts(),
@@ -33,6 +35,7 @@ const [rankedPosts, tags, recentPosts] = await Promise.all([
   noindex
   noCanonical
   noAds
+  noAffiliate
 >
   <div slot="main" class={styles.main}>
     {/* h1 にする理由と見た目の据え置きは

@@ -75,9 +75,22 @@ const title = `記事一覧 ${page}/${numberOfPages} ページ目`
 // /posts/page/2 と /posts/page/3 も互いに区別が付かなかった。
 // 件数と «何件目から何件目か» を入れて 1 ページずつ違う文にする
 const description = `ブログ記事一覧の ${page}/${numberOfPages} ページ目です。全 ${allPosts.length} 件のうち、新しい順に ${firstPostNumber}〜${lastPostNumber} 件目を並べています。`
+
+// 広告（noAds）を出さない。中身のほとんどが記事へのリンクの並びで、
+// Google Publisher Policies の "Google-served ads on screens without
+// publisher-content" に当たるおそれがあるため（Issue #113）。同ポリシーの
+// Glossary は publisher-content を「site navigation and related content
+// links は含まない」と定義していて、一覧のリンクは related content links に
+// あたる。アフィリエイト（noAffiliate）は運営者の判断で残す。
+// 詳しくは src/components/SiteHead.astro の Props のコメント
 ---
 
-<Layout title={title} description={description} path={`/posts/page/${page}`}>
+<Layout
+  title={title}
+  description={description}
+  path={`/posts/page/${page}`}
+  noAds
+>
   <div slot="main" class={styles.main}>
     <header>
       {/*
