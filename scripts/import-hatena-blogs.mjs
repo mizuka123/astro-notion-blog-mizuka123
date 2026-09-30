@@ -1,6 +1,6 @@
 // はてなブログ 3 つ（blog / tech / money.mizuka123.net）の記事をアーカイブ記事として取り込む。
 //
-//   node scripts/import-hatena-blogs.mjs [--export-dir <dir>] [--offline]
+//   node scripts/import-hatena-blogs.mjs [--export-dir <dir>] [--gyazo-json <file>] [--offline]
 //
 // 一度だけ実行して、できたファイルをコミットするためのもの（ビルドでは呼ばない）。
 // はてなは解約するので、元のエクスポートはもう手に入らない前提で手順を残している。
@@ -146,7 +146,17 @@ const localNameOf = (sub, src) => {
   return `hatena-${sub}-${safe}`;
 };
 
+// Gyazo は不正アクセスの件で過去画像が配信停止になっていて、
+// ログインした本人のブラウザからしか取れない。ブラウザで
+// { "<i.gyazo.com の URL>": { type, data: <base64> } } の JSON に
+// まとめて落とし、--gyazo-json で渡す
+const GYAZO = (() => {
+  const file = argValue('--gyazo-json');
+  return file ? JSON.parse(fs.readFileSync(file, 'utf8')) : {};
+})();
+
 const fetchCached = async (url) => {
+  if (GYAZO[url]) return Buffer.from(GYAZO[url].data, 'base64');
   fs.mkdirSync(CACHE_DIR, { recursive: true });
   const key = path.join(CACHE_DIR, encodeURIComponent(url));
   if (fs.existsSync(key)) return fs.readFileSync(key);
