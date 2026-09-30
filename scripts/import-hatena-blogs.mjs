@@ -394,7 +394,13 @@ const main = async () => {
 
     for (const entry of entries) {
       const slug = slugOf(sub, entry.BASENAME);
-      const body = entry.BODY ?? '';
+      // 最後の <li> を閉じ忘れたまま空行と見出しが続く記事がある
+      // （blog-20160308-220531）。そのままだと後ろの見出しと段落が
+      // リスト項目の中に入るので、見出しの手前でリストを閉じる
+      const body = (entry.BODY ?? '').replace(
+        /(<li>(?:(?!<\/li>|<li>)[\s\S])*?)\n\n(?=<h[1-6]>)/g,
+        '$1</li></ul>\n\n'
+      );
 
       // 本文の画像を先に集めて取り込んでおく（turndown の規則は同期なので）
       const images = new Map();
@@ -418,7 +424,10 @@ const main = async () => {
       }
 
       const td = createTurndown(images);
+      // 目次のページ内リンクは元の見出しの大文字を残しているが、
+      // Astro が振る見出しの id は小文字になるので合わせる
       const markdown = collapseLost(td.turndown(body))
+        .replace(/\]\((#[^)]+)\)/g, (_m, hash) => `](${hash.toLowerCase()})`)
         .replace(/\n{3,}/g, '\n\n')
         .trim();
 
