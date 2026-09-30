@@ -348,7 +348,13 @@ const createTurndown = (images) => {
       const info = images.get(src);
       if (!info) return '';
       if (!info.name) return `\n\n${LOST_IMAGE}\n\n`;
-      const alt = (n.getAttribute('alt') ?? '').replace(/[[\]]/g, '');
+      // 画像の URL・フォトライフの記法（f:id:...）・「Image from Gyazo」は
+      // ツールが自動で入れた値で、説明になっていないので空にする。
+      // ファイル名（4X3A4962.jpg など）は既存のアーカイブ記事に合わせて残す
+      const rawAlt = (n.getAttribute('alt') ?? '').replace(/[[\]]/g, '');
+      const alt = /^(https?:\/\/|f:id:|Image from Gyazo$)/.test(rawAlt)
+        ? ''
+        : rawAlt;
       return `![${alt}](/archive/images/${info.name})`;
     },
   });
