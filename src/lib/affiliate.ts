@@ -27,7 +27,8 @@ const VALUECOMMERCE_SID = '3066752'
 
 /** ValueCommerce のプログラム ID（提携先ショップごとに 1 つ） */
 const VALUECOMMERCE_PID_YAHOO_SHOPPING = '881990642'
-const VALUECOMMERCE_PID_SEVEN_NET = '881990643'
+
+// NOTE: セブンネット（pid=881990643）は外した。運営者の判断（2026-10-01）。
 
 // NOTE: Yahoo!オークション（pid=881990645）はあえて含めない。
 // ヒット 0 件の検索に対して Yahoo 側が 404 を返す仕様のため、
@@ -62,7 +63,7 @@ const buildValueCommerceURL = (pid: string, destinationURL: string): string =>
   `https://ck.jp.ap.valuecommerce.com/servlet/referral?sid=${VALUECOMMERCE_SID}&pid=${pid}&vc_url=${encodeURIComponent(destinationURL)}`
 
 /**
- * 商品名から 4 ショップ分の検索リンクを組み立てる。
+ * 商品名から 3 ショップ分の検索リンクを組み立てる。
  *
  * .astro に URL 生成を埋め込まず純粋関数として切り出しているのは、
  * エンコードの正しさを画面を起動せずに検証できるようにするため
@@ -80,7 +81,6 @@ export const buildProductLinks = (productName: string): ShopLink[] => {
   // 商品名に / が含まれても %2F になり 1 セグメントのまま保たれる
   const rakutenSearchURL = `https://search.rakuten.co.jp/search/mall/${encodedKeyword}/`
   const yahooShoppingSearchURL = `https://shopping.yahoo.co.jp/search?p=${encodedKeyword}`
-  const sevenNetSearchURL = `https://7net.omni7.jp/search?q=${encodedKeyword}`
 
   return [
     {
@@ -101,14 +101,6 @@ export const buildProductLinks = (productName: string): ShopLink[] => {
       url: buildValueCommerceURL(
         VALUECOMMERCE_PID_YAHOO_SHOPPING,
         yahooShoppingSearchURL
-      ),
-    },
-    {
-      name: 'セブンネットで探す',
-      color: '#d9332b',
-      url: buildValueCommerceURL(
-        VALUECOMMERCE_PID_SEVEN_NET,
-        sevenNetSearchURL
       ),
     },
   ]

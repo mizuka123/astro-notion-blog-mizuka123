@@ -56,9 +56,11 @@ const links = buildProductLinks(productName)
   }
   .shops {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    /* スマホでも 3 列のまま。2 列にすると 3 つ目だけが下の段に余って不揃いになる。
+       ボタンは 3 つだけなので、狭い画面でもラベルの折り返しで収まる */
+    grid-template-columns: repeat(3, 1fr);
     /* ラベルが折り返した行だけ高くなって不揃いに見えるのを防ぐ。
-       2 列になる狭い画面で「Yahoo!ショッピングで探す」だけ 2 行になるため */
+       狭い画面で「Yahoo!ショッピングで探す」だけ 2 行になるため */
     grid-auto-rows: 1fr;
     gap: 8px;
     margin: 0;
@@ -99,11 +101,5 @@ const links = buildProductLinks(productName)
     /* 色はショップごとに違うので、暗くするのではなく全体を少し透かす。
        どの背景色でも同じ見え方になる */
     opacity: 0.85;
-  }
-  @media (max-width: 640px) {
-    /* 4 列のままだと 1 列あたり 70px 程度になりラベルが収まらないので 2 列にする */
-    .shops {
-      grid-template-columns: repeat(2, 1fr);
-    }
   }
 </style>
