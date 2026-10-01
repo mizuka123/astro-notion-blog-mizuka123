@@ -26,7 +26,8 @@ const links = buildProductLinks(productName)
             rel="nofollow sponsored noopener noreferrer"
             style={`--shop-color: ${link.color}`}
           >
-            {link.name}
+            <span>{link.name}</span>
+            <span>で探す</span>
           </a>
         </li>
       ))
@@ -77,7 +78,11 @@ const links = buildProductLinks(productName)
      角丸 10px / 文字 13px / 白文字も同じく MyLinkBox に合わせている */
   .shops > li > a {
     display: flex;
+    /* ショップ名と「で探す」を別の要素にしてあり、収まらないときは
+       その間で改行する。「楽天市場で探 / す」のような切れ方を避けるため */
+    flex-wrap: wrap;
     align-items: center;
+    align-content: center;
     justify-content: center;
     box-sizing: border-box;
     width: 100%;
@@ -96,6 +101,10 @@ const links = buildProductLinks(productName)
     /* 「Yahoo!ショッピングで探す」のような長いラベルを単語途中でも折り返す。
        これが無いと狭い画面でボタンが横に溢れる */
     overflow-wrap: anywhere;
+  }
+  /* flex の子は min-width:auto だと縮まず、ボタンの幅を超えてはみ出す */
+  .shops > li > a > span {
+    min-width: 0;
   }
   .shops > li > a:hover {
     /* 色はショップごとに違うので、暗くするのではなく全体を少し透かす。

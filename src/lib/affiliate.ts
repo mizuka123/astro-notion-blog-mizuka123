@@ -36,7 +36,11 @@ const VALUECOMMERCE_PID_YAHOO_SHOPPING = '881990642'
 
 /** 1 ショップ分のリンク */
 export interface ShopLink {
-  /** ボタンに出すラベル */
+  /**
+   * ショップ名。ボタンには「<name>で探す」と出す。
+   * 「で探す」を含めないのは、狭い画面でショップ名の途中ではなく
+   * 「で探す」の手前で改行させるため（ProductLinkBox.astro 側で別の要素にする）
+   */
   name: string
   /** 遷移先（アフィリエイト計測を通した URL） */
   url: string
@@ -84,19 +88,19 @@ export const buildProductLinks = (productName: string): ShopLink[] => {
 
   return [
     {
-      name: 'Amazonで探す',
+      name: 'Amazon',
       color: '#fd9827',
       // Amazon だけは中間サーバを挟まず、検索 URL に tag を足すだけで計測される
       url: `https://www.amazon.co.jp/s?k=${encodedKeyword}&tag=${AMAZON_ASSOCIATE_TAG}`,
     },
     {
-      name: '楽天市場で探す',
+      name: '楽天市場',
       color: '#bd0711',
       // 楽天は pc= の値として遷移先 URL を包む。vc_url= と同じ二重エンコード
       url: `https://hb.afl.rakuten.co.jp/hgc/${RAKUTEN_AFFILIATE_ID}/?pc=${encodeURIComponent(rakutenSearchURL)}`,
     },
     {
-      name: 'Yahoo!ショッピングで探す',
+      name: 'Yahoo!ショッピング',
       color: '#ff0033',
       url: buildValueCommerceURL(
         VALUECOMMERCE_PID_YAHOO_SHOPPING,
