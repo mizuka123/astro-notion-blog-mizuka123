@@ -27,7 +27,8 @@ const VALUECOMMERCE_SID = '3066752'
 
 /** ValueCommerce のプログラム ID（提携先ショップごとに 1 つ） */
 const VALUECOMMERCE_PID_YAHOO_SHOPPING = '881990642'
-const VALUECOMMERCE_PID_SEVEN_NET = '881990643'
+
+// NOTE: セブンネット（pid=881990643）は外した。運営者の判断（2026-10-01）。
 
 // NOTE: Yahoo!オークション（pid=881990645）はあえて含めない。
 // ヒット 0 件の検索に対して Yahoo 側が 404 を返す仕様のため、
@@ -35,7 +36,11 @@ const VALUECOMMERCE_PID_SEVEN_NET = '881990643'
 
 /** 1 ショップ分のリンク */
 export interface ShopLink {
-  /** ボタンに出すラベル */
+  /**
+   * ショップ名。ボタンには「<name>で探す」と出す。
+   * 「で探す」を含めないのは、狭い画面でショップ名の途中ではなく
+   * 「で探す」の手前で改行させるため（ProductLinkBox.astro 側で別の要素にする）
+   */
   name: string
   /** 遷移先（アフィリエイト計測を通した URL） */
   url: string
@@ -62,7 +67,7 @@ const buildValueCommerceURL = (pid: string, destinationURL: string): string =>
   `https://ck.jp.ap.valuecommerce.com/servlet/referral?sid=${VALUECOMMERCE_SID}&pid=${pid}&vc_url=${encodeURIComponent(destinationURL)}`
 
 /**
- * 商品名から 4 ショップ分の検索リンクを組み立てる。
+ * 商品名から 3 ショップ分の検索リンクを組み立てる。
  *
  * .astro に URL 生成を埋め込まず純粋関数として切り出しているのは、
  * エンコードの正しさを画面を起動せずに検証できるようにするため
@@ -80,35 +85,26 @@ export const buildProductLinks = (productName: string): ShopLink[] => {
   // 商品名に / が含まれても %2F になり 1 セグメントのまま保たれる
   const rakutenSearchURL = `https://search.rakuten.co.jp/search/mall/${encodedKeyword}/`
   const yahooShoppingSearchURL = `https://shopping.yahoo.co.jp/search?p=${encodedKeyword}`
-  const sevenNetSearchURL = `https://7net.omni7.jp/search?q=${encodedKeyword}`
 
   return [
     {
-      name: 'Amazonで探す',
+      name: 'Amazon',
       color: '#fd9827',
       // Amazon だけは中間サーバを挟まず、検索 URL に tag を足すだけで計測される
       url: `https://www.amazon.co.jp/s?k=${encodedKeyword}&tag=${AMAZON_ASSOCIATE_TAG}`,
     },
     {
-      name: '楽天市場で探す',
+      name: '楽天市場',
       color: '#bd0711',
       // 楽天は pc= の値として遷移先 URL を包む。vc_url= と同じ二重エンコード
       url: `https://hb.afl.rakuten.co.jp/hgc/${RAKUTEN_AFFILIATE_ID}/?pc=${encodeURIComponent(rakutenSearchURL)}`,
     },
     {
-      name: 'Yahoo!ショッピングで探す',
+      name: 'Yahoo!',
       color: '#ff0033',
       url: buildValueCommerceURL(
         VALUECOMMERCE_PID_YAHOO_SHOPPING,
         yahooShoppingSearchURL
-      ),
-    },
-    {
-      name: 'セブンネットで探す',
-      color: '#d9332b',
-      url: buildValueCommerceURL(
-        VALUECOMMERCE_PID_SEVEN_NET,
-        sevenNetSearchURL
       ),
     },
   ]
