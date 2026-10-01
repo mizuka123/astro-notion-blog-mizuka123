@@ -61,7 +61,7 @@ const links = buildProductLinks(productName)
        ボタンは 3 つだけなので、狭い画面でもラベルの折り返しで収まる */
     grid-template-columns: repeat(3, 1fr);
     /* ラベルが折り返した行だけ高くなって不揃いに見えるのを防ぐ。
-       狭い画面で「Yahoo!ショッピングで探す」だけ 2 行になるため */
+       狭い画面では、幅によって 2 行になるボタンと 1 行のボタンが混ざるため */
     grid-auto-rows: 1fr;
     gap: 8px;
     margin: 0;
@@ -98,7 +98,7 @@ const links = buildProductLinks(productName)
     line-height: 1.3;
     text-align: center;
     text-decoration: none;
-    /* 「Yahoo!ショッピングで探す」のような長いラベルを単語途中でも折り返す。
+    /* ボタン幅より長いショップ名でも、単語の途中で折り返して収める。
        これが無いと狭い画面でボタンが横に溢れる */
     overflow-wrap: anywhere;
   }

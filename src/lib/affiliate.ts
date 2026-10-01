@@ -100,7 +100,7 @@ export const buildProductLinks = (productName: string): ShopLink[] => {
       url: `https://hb.afl.rakuten.co.jp/hgc/${RAKUTEN_AFFILIATE_ID}/?pc=${encodeURIComponent(rakutenSearchURL)}`,
     },
     {
-      name: 'Yahoo!ショッピング',
+      name: 'Yahoo!',
       color: '#ff0033',
       url: buildValueCommerceURL(
         VALUECOMMERCE_PID_YAHOO_SHOPPING,
