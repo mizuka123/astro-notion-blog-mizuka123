@@ -258,7 +258,11 @@ export const extractHeadings = (blocks: Block[]): Block[] => {
 }
 
 export const assignHeadingAnchorIds = (headings: Block[]): void => {
-  const counts: { [key: string]: number } = {}
+  // 同じ baseId の出現回数だけで連番を振ると、見出しのテキスト自体が
+  // "section-2" のとき、2 つ目の "section" に振った "section-2" と衝突して
+  // HTML の id が重複する。割り当て済みの id を集合で持ち、空いている
+  // 連番まで進めて決める
+  const assigned = new Set<string>()
   headings.forEach((block) => {
     const heading =
       block.Heading1 || block.Heading2 || block.Heading3 || block.Heading4
@@ -266,9 +270,12 @@ export const assignHeadingAnchorIds = (headings: Block[]): void => {
       return
     }
     const baseId = _buildBaseHeadingId(heading)
-    const count = counts[baseId] || 0
-    counts[baseId] = count + 1
-    heading.AnchorId = count === 0 ? baseId : `${baseId}-${count + 1}`
+    let anchorId = baseId
+    for (let n = 2; assigned.has(anchorId); n++) {
+      anchorId = `${baseId}-${n}`
+    }
+    assigned.add(anchorId)
+    heading.AnchorId = anchorId
   })
 }
 
