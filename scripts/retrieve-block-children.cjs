@@ -10,6 +10,28 @@ const notion = new Client({
 const requestDuration = 300;
 const maxRetries = 3;
 
+const pageIdArg = process.argv.find((arg) => arg.startsWith('--pageId='));
+const pageId = pageIdArg ? pageIdArg.replace('--pageId=', '') : '';
+
+// 下で `tmp/${pageId}` を rmSync({ recursive: true }) するので、pageId を
+// 検証せずに使うと、空なら tmp/ 全体、`../src` のような値なら tmp/ の外を
+// 消してしまう。引数が無いときの素の TypeError も分かりにくい。
+// Notion の ID（32 桁の hex、UUID のハイフン有無どちらでも）に限定し、
+// 外れたらファイルシステムに触る前に止める
+const notionIdPattern =
+  /^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$/i;
+if (!notionIdPattern.test(pageId)) {
+  console.error(
+    `Usage: node scripts/retrieve-block-children.cjs --pageId=<Notion page ID>` +
+      ` (32 hex chars, with or without hyphens). Got: ${JSON.stringify(pageId)}`
+  );
+  process.exit(1);
+}
+
+const outputDir = `tmp/${pageId}`;
+fs.rmSync(outputDir, { recursive: true, force: true });
+fs.mkdirSync(outputDir, { recursive: true });
+
 const retry = (retriesLeft, fn) => {
   return fn().catch(function (err) {
     if (retriesLeft <= 0) {
@@ -53,7 +75,7 @@ const retrieveAndWriteBlockChildren = async (blockId) => {
     params['start_cursor'] = res.next_cursor;
   }
 
-  fs.writeFileSync(`tmp/${blockId}.json`, JSON.stringify(results));
+  fs.writeFileSync(`${outputDir}/${blockId}.json`, JSON.stringify(results));
 
   // forEach(async ...) だとコールバックの Promise が await されないため、
   // この関数が子や synced_block の取得を待たずに返っていた。つまり
@@ -82,9 +104,9 @@ const retrieveAndWriteBlockChildren = async (blockId) => {
       try {
         await retrieveAndWriteBlockChildren(block.id);
       } catch (err) {
-        // ここで block.id を残さないと、末尾の catch が出す process.argv[2]
-        // （ページ直下のルート）しか手がかりが無く、入れ子の奥で失敗した
-        // 実際の位置が分からない
+        // ここで block.id を残さないと、末尾の catch が出す pageId
+        // （--pageId= の値＝ページ直下のルート）しか手がかりが無く、
+        // 入れ子の奥で失敗した実際の位置が分からない
         console.error(`Failed while descending into block_id: ${block.id}`);
         throw err;
       }
@@ -101,7 +123,7 @@ const retrieveAndWriteBlock = async (blockId) => {
 
   const block = await retry(maxRetries, () => notion.blocks.retrieve(params));
 
-  fs.writeFileSync(`tmp/${blockId}.json`, JSON.stringify(block));
+  fs.writeFileSync(`${outputDir}/${blockId}.json`, JSON.stringify(block));
 
   if (block.has_children) {
     await retrieveAndWriteBlockChildren(block.id);
@@ -109,14 +131,13 @@ const retrieveAndWriteBlock = async (blockId) => {
 };
 
 (async () => {
-  const blockId = process.argv[2];
-  await retrieveAndWriteBlockChildren(blockId);
+  await retrieveAndWriteBlockChildren(pageId);
 })().catch((err) => {
   // 取得に失敗したままキャッシュが不完全な状態で「成功」として扱われると、
   // その後のビルドが古い内容や欠けた内容で通ってしまう。
   // 途中の catch は文脈（block_id）だけを出して再スローするので、
   // エラー本体は再帰の段数ぶん重複させずここで一度だけ出す
-  console.error(`Failed to cache block children. block_id: ${process.argv[2]}`);
+  console.error(`Failed to cache block children. block_id: ${pageId}`);
   console.error(err);
   process.exit(1);
 });
