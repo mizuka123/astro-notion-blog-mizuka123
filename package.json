@@ -88,7 +88,7 @@
     "@nx/nx-linux-x64-gnu": "20.3.1"
   },
   "volta": {
-    "node": "22.23.2"
+    "node": "24.22.0"
   },
   "overrides": {
     "re2": "^1.26.1"
