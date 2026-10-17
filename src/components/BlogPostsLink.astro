@@ -18,6 +18,12 @@ const iconImageURLs = new Map<string, string | undefined>(
     getIconImageURL(post.Icon, `page_id: ${post.PageId}`),
   ])
 )
+
+// 下のテンプレートで、アイコン（<span> / <img>）と {post.Title} は
+// «同じ行に» 続けて書くこと。Astro 7 の Rust 製コンパイラは、式の中の
+// 要素と {post.Title} の間の改行を compressHTML: true でも空白 1 つとして
+// 残す（Astro 5 の Go 製コンパイラは消していた）。行を分けると
+// 「📔 タイトル」のように間が空く
 ---
 
 {
@@ -44,16 +50,11 @@ const iconImageURLs = new Map<string, string | undefined>(
             >
               {post.Icon && post.Icon.Type === 'emoji' ? (
                 <>
-                  <span>{post.Icon.Emoji}</span>
-                  {post.Title}
+                  <span>{post.Icon.Emoji}</span>{post.Title}
                 </>
               ) : iconImageURLs.get(post.PageId) ? (
                 <>
-                  <img
-                    src={iconImageURLs.get(post.PageId)}
-                    alt=""
-                  />
-                  {post.Title}
+                  <img src={iconImageURLs.get(post.PageId)} alt="" />{post.Title}
                 </>
               ) : (
                 post.Title

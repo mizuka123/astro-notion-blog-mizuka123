@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'astro/config';
+import { unified } from '@astrojs/markdown-remark';
 import icon from 'astro-icon';
 import { CUSTOM_DOMAIN, BASE_PATH } from './src/server-constants';
 import { stripBasePath } from './src/lib/blog-helpers';
@@ -145,6 +146,13 @@ const getSite = function () {
 export default defineConfig({
   site: getSite(),
   base: BASE_PATH,
+  // Astro 7 で compressHTML の既定が true から 'jsx' に変わった。'jsx' は
+  // 改行をまたぐ要素間の空白を消す（React と同じ規則）。既定のままビルド
+  // すると全 1030 ページで表示上の空白が変わった（実測。フッターの
+  // 「Powered by astro-notion-blog」が「Powered byastro-notion-blog」に、
+  // サイト名のアイコンと「みずかるちゃー」の間の空白が消える、など）。
+  // 見た目を Astro 5 から変えないよう、従来の既定値を明示しておく
+  compressHTML: true,
   markdown: {
     // Shiki は 1 行のトークン化が tokenizeTimeLimit（既定 500ms）を超えると、
     // その行の残りを色の無い 1 トークンにして打ち切る。ビルドで最初に出てくる
@@ -175,45 +183,53 @@ export default defineConfig({
         },
       ],
     },
-    // カエレバの商品ボックスがばらけた <p> のままだと、
-    // 自動広告が商品名と購入リンクの間に入る。1 つの要素にまとめる。
-    // そのうえで自前の画像に loading="lazy" と width/height を付ける。
-    // rehypeProductBox は <p> を <div> で包み直すだけで画像の順序を
-    // 変えないため、3 つの順序はどれでも結果は同じ。
-    // rehypeArchiveHeadings が触るのは見出しのタグ名と className で、
-    // 他の 3 つは <p> <a> <div> と <img> しか触らない。触る集合が
-    // 交わらないので、これもどこに置いても結果は変わらない。
-    // rehypeArchiveSrcset は画像に srcset と sizes を足すだけで（#134）、
-    // 寸法は width / height を読まずに自分でファイルから読むので、
-    // これも順序に依存しない
-    rehypePlugins: [
-      rehypeProductBox,
-      rehypeLazyImages,
-      rehypeImageDimensions,
-      rehypeArchiveSrcset,
-      rehypeArchiveHeadings,
-    ],
-    // 本文から meta description を作る。frontmatter に description の
-    // 項目が無いため、remark 側で file.data.astro.frontmatter に書き込む。
-    // remarkArchiveImages は本文のローカル画像の URL を同じ仕組みで渡し、
-    // LayoutMd.astro が og:image と JSON-LD の image を選ぶのに使う。
-    // 2 つは frontmatter の別の項目を書くだけなので順序は結果に影響しない。
-    // remarkArchiveRelativeImages は生 HTML の <img src="images/..."> を
-    // /archive/images/... に直す（#126）。remarkArchiveImages より前に置き、
-    // 直した URL を本文の画像として拾わせる。remarkArchiveDescription は
-    // html ノードを読まないので、こちらとの順序は結果に影響しない。
-    // remarkArchiveRawImageDimensions は生 HTML の <img> に width / height を
-    // 足す（#152。rehypeImageDimensions からは生 HTML が見えないため）。
-    // src が /archive/images/ になっていないと対象外と判定するので、
-    // 必ず remarkArchiveRelativeImages の «後» に置くこと。前に置くと
-    // 12 個とも黙って寸法が付かない。remarkArchiveImages は src だけを
-    // 読むので、属性が増えても拾う URL は変わらない
-    remarkPlugins: [
-      remarkArchiveRelativeImages,
-      remarkArchiveRawImageDimensions,
-      remarkArchiveDescription,
-      remarkArchiveImages,
-    ],
+    // Astro 7 から Markdown の既定の処理系が remark/rehype（unified）ではなく
+    // Sätteri になり、下の remark/rehype プラグインはそのままでは走らない。
+    // プラグインはどれも unified の mdast/hast を前提に書いてあるので、
+    // @astrojs/markdown-remark の unified() を処理系に明示して従来どおり動かす。
+    // markdown.remarkPlugins / rehypePlugins に直接置く書き方も Astro が
+    // unified() に寄せて動かしてはくれるが、非推奨で警告が出るためこちらに移した
+    processor: unified({
+      // カエレバの商品ボックスがばらけた <p> のままだと、
+      // 自動広告が商品名と購入リンクの間に入る。1 つの要素にまとめる。
+      // そのうえで自前の画像に loading="lazy" と width/height を付ける。
+      // rehypeProductBox は <p> を <div> で包み直すだけで画像の順序を
+      // 変えないため、3 つの順序はどれでも結果は同じ。
+      // rehypeArchiveHeadings が触るのは見出しのタグ名と className で、
+      // 他の 3 つは <p> <a> <div> と <img> しか触らない。触る集合が
+      // 交わらないので、これもどこに置いても結果は変わらない。
+      // rehypeArchiveSrcset は画像に srcset と sizes を足すだけで（#134）、
+      // 寸法は width / height を読まずに自分でファイルから読むので、
+      // これも順序に依存しない
+      rehypePlugins: [
+        rehypeProductBox,
+        rehypeLazyImages,
+        rehypeImageDimensions,
+        rehypeArchiveSrcset,
+        rehypeArchiveHeadings,
+      ],
+      // 本文から meta description を作る。frontmatter に description の
+      // 項目が無いため、remark 側で file.data.astro.frontmatter に書き込む。
+      // remarkArchiveImages は本文のローカル画像の URL を同じ仕組みで渡し、
+      // LayoutMd.astro が og:image と JSON-LD の image を選ぶのに使う。
+      // 2 つは frontmatter の別の項目を書くだけなので順序は結果に影響しない。
+      // remarkArchiveRelativeImages は生 HTML の <img src="images/..."> を
+      // /archive/images/... に直す（#126）。remarkArchiveImages より前に置き、
+      // 直した URL を本文の画像として拾わせる。remarkArchiveDescription は
+      // html ノードを読まないので、こちらとの順序は結果に影響しない。
+      // remarkArchiveRawImageDimensions は生 HTML の <img> に width / height を
+      // 足す（#152。rehypeImageDimensions からは生 HTML が見えないため）。
+      // src が /archive/images/ になっていないと対象外と判定するので、
+      // 必ず remarkArchiveRelativeImages の «後» に置くこと。前に置くと
+      // 12 個とも黙って寸法が付かない。remarkArchiveImages は src だけを
+      // 読むので、属性が増えても拾う URL は変わらない
+      remarkPlugins: [
+        remarkArchiveRelativeImages,
+        remarkArchiveRawImageDimensions,
+        remarkArchiveDescription,
+        remarkArchiveImages,
+      ],
+    }),
   },
   integrations: [
     icon(),
