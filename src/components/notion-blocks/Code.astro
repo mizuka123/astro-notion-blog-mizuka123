@@ -52,8 +52,28 @@ const grammer =
 </div>
 
 <script>
-  import mermaid from 'mermaid'
-  mermaid.initialize({ startOnLoad: true, theme: 'neutral' })
+  // mermaid はページに mermaid のコードブロックがあるときだけ読み込む。
+  // このスクリプトはコードブロックのあるページすべてに入るが、mermaid の
+  // 本体は 685KB あり（11.17 時点）、mermaid を使っていないページでも
+  // 毎回読み込まれていた。動的 import にすると Vite が別チャンクに分ける。
+  //
+  // startOnLoad: true は使わない。mermaid は window の load イベントで
+  // 描画を始めるが、動的 import が解決する頃には load が済んでいることが
+  // あり、そのときは何も描画されない。読み込んだら run() で明示的に描画する。
+  //
+  // layout と look は mermaid 11 までの既定値。12 で既定が ELK と neo に
+  // 変わり、既存の図の配置と見た目が変わるため、元の描画に固定している
+  if (document.querySelector('pre.mermaid')) {
+    import('mermaid').then(({ default: mermaid }) => {
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: 'neutral',
+        layout: 'dagre',
+        look: 'classic',
+      })
+      return mermaid.run({ querySelector: 'pre.mermaid' })
+    })
+  }
 </script>
 
 <script>
