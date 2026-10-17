@@ -44,7 +44,7 @@ import path from 'node:path'
 // 下のチャンクに束ねられて場所が変わるため。
 // katex の package.json の exports には "./*": "./*" があるので、
 // katex/package.json も katex/dist/katex.min.css も解決できる
-// （0.16.19 で確認）
+// （0.16.19 と 0.19.0 で確認）
 const requireFromCwd = createRequire(path.join(process.cwd(), 'package.json'))
 
 const computeKatexCss = (): { href: string; integrity: string } => {
