@@ -1216,3 +1216,5 @@
 /7723 /archive/7723/ 301
 /7733 /archive/7733/ 301
 /7740 /archive/7740/ 301
+/feed/ /feed 301
+/sitemap.xml /sitemap-index.xml 301
