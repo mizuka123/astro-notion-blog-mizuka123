@@ -19,6 +19,59 @@ const { trackingId = '' } = Astro.props
         {window.dataLayer.push(arguments)}
         gtag('js', new Date()); gtag('config', trackingId);
       </script>
+      {/*
+        商品リンク（アフィリエイト）のクリックを affiliate_click として送る。
+        どの記事のどのショップのボタンが押されているかを知り、記事の直し方や
+        次に書く題材を決めるため。GA4 の拡張計測の outbound click は
+        ショップを区別できず、ValueCommerce 経由の Yahoo! も見分けられない。
+        リンクは記事本文（Markdown / Notion）に散らばっているので、
+        document への委譲で 1 か所で拾う
+      */}
+      <script is:inline>
+        // 上の define:vars のスクリプトは関数で包まれて出力されるため、
+        // そこで定義した gtag は window から見えない。同じ形でここにも作る
+        // （gtag.js は配列ではなく arguments オブジェクトを期待する）
+        function gtag() {
+          window.dataLayer.push(arguments)
+        }
+        // リンク先からショップを決める。商品リンクでなければ null
+        function shopOf(href) {
+          if (/amazon\.co\.jp|amzn\.to/.test(href)) return 'amazon'
+          if (/rakuten\.co\.jp/.test(href)) return 'rakuten'
+          if (/a8\.net/.test(href)) return 'a8'
+          if (!/valuecommerce\.com/.test(href)) return null
+          // ValueCommerce は遷移先を vc_url= にエンコードして包んでいる
+          let decoded = href
+          try {
+            decoded = decodeURIComponent(href)
+          } catch {
+            // 壊れたエンコードでも計測は落とさない
+          }
+          return /shopping\.yahoo/.test(decoded) ? 'yahoo' : 'valuecommerce'
+        }
+        document.addEventListener('click', function (event) {
+          const anchor = event.target.closest && event.target.closest('a[href]')
+          if (!anchor) return
+          const shop = shopOf(anchor.href)
+          if (!shop) return
+          const box = anchor.closest('.product-link-box')
+          const nameNode = box && box.querySelector('.product-name')
+          const image = anchor.querySelector('img')
+          // 画像だけのリンクは文字を持たないので、画像の alt で代える
+          const productName =
+            (nameNode || anchor).textContent.trim() || (image ? image.alt : '')
+          let location = 'text'
+          if (box) location = anchor.closest('.shops') ? 'box_button' : 'box_product'
+          else if (image) location = 'image'
+          gtag('event', 'affiliate_click', {
+            shop: shop,
+            product_name: productName.slice(0, 100),
+            link_location: location,
+            link_url: anchor.href.slice(0, 500),
+            transport_type: 'beacon',
+          })
+        })
+      </script>
     </>
   )
 }
