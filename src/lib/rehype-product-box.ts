@@ -1,4 +1,5 @@
 import type { Element, ElementContent, Root, RootContent } from 'hast'
+import { buildProductLinks } from './affiliate.ts'
 
 /**
  * WordPress 由来のアーカイブ記事にあるカエレバの商品ボックスを、
@@ -12,7 +13,11 @@ import type { Element, ElementContent, Root, RootContent } from 'hast'
  * 商品ボックスの枠線の内側に広告が描画されていた。
  *
  * 記事側（609 ファイル）は書き換えず、ビルド時に包む。
- * テキストの中身は変えず、入れ子だけを変える。
+ *
+ * 包んだうえで、Notion 記事の商品リンクの箱（ProductLinkBox.astro）と
+ * 同じ markup に組み直す。見た目は src/styles/product-link-box.css を共有する。
+ * ショップへのテキストリンクは色付きのボタンに、商品画像と商品名は
+ * 箱の上段に並べる。
  */
 
 // ショップのリンクとして扱うテキスト。
@@ -24,6 +29,8 @@ const SHOP_NAMES = new Set([
   'Amazon',
   '楽天市場',
   'Yahooショッピング',
+  // 2026-10 にボタンを affiliate.ts の形へ揃えたときの表記（PR #186）
+  'Yahoo!ショッピング',
   'ヤフオク!',
   '7net',
   'セブンネット',
@@ -44,6 +51,11 @@ const SHOP_NAMES = new Set([
  */
 const isProductHref = (href: string): boolean =>
   href.includes('/exec/obidos/ASIN/') ||
+  // 販売終了した商品の個別ページへのリンクは、2026-10 にタグ付きの
+  // 検索リンクへ置き換えた（PR #184）。著者の地の文の Amazon リンクを
+  // 巻き込まないよう、このブログのタグが付いた検索 URL に限る
+  (href.startsWith('https://www.amazon.co.jp/s?k=') &&
+    href.includes('tag=mizuka123-22')) ||
   href.includes('afl.rakuten.co.jp') ||
   href.includes('valuecommerce.com') ||
   href.includes('7netshopping.jp') ||
@@ -179,16 +191,127 @@ const rangeFromPosted = (
   return [start, last + 1]
 }
 
-const wrap = (nodes: RootContent[]): Element => ({
+// ボタンの色とラベルは Notion の箱と揃える。affiliate.ts が持つ値を
+// そのまま使い、ここに色を書き写さない
+const SHOP_STYLE = new Map(
+  buildProductLinks('_').map((link) => [link.name, link] as const)
+)
+
+/** 記事中のショップ名を、Notion の箱のラベルに寄せる。 */
+const shopLabel = (name: string): string =>
+  name === 'Yahooショッピング' || name === 'Yahoo!ショッピング'
+    ? 'Yahoo!'
+    : name
+
+// affiliate.ts に無いショップ（ソニーストアなど）のボタンの色
+const OTHER_SHOP_COLOR = '#6b6b6b'
+
+const el = (
+  tagName: string,
+  className: string | null,
+  children: ElementContent[],
+  properties: Element['properties'] = {}
+): Element => ({
   type: 'element',
-  tagName: 'div',
-  properties: { className: ['product-box'] },
+  tagName,
+  properties: className
+    ? { ...properties, className: [className] }
+    : properties,
+  children,
+})
+
+const text = (value: string): ElementContent => ({ type: 'text', value })
+
+const hasImage = (node: ElementContent): boolean =>
+  isElement(node) &&
+  (node.tagName === 'img' || node.children.some((child) => hasImage(child)))
+
+/** ショップのリンクを、ProductLinkBox.astro と同じボタンにする。 */
+const shopButton = (anchor: Element): Element => {
+  const label = shopLabel(textOf(anchor).trim())
+  const color = SHOP_STYLE.get(label)?.color ?? OTHER_SHOP_COLOR
+  return el('li', null, [
+    el(
+      'a',
+      null,
+      [el('span', null, [text(label)]), el('span', null, [text('で探す')])],
+      {
+        href: hrefOf(anchor),
+        target: '_blank',
+        rel: ['nofollow', 'sponsored', 'noopener', 'noreferrer'],
+        style: `--shop-color: ${color}`,
+      }
+    ),
+  ])
+}
+
+/**
+ * まとめた段落の並びを、Notion の商品リンクの箱と同じ形に組み直す。
+ * ショップのリンクが 1 つも無ければ組み直さない（ボタンの無い箱になるため）
+ */
+const rebuild = (nodes: ElementContent[]): ElementContent[] | null => {
+  const images: Element[] = []
+  let title: Element | null = null
+  const meta: string[] = []
+  const shops: Element[] = []
+
+  for (const node of nodes) {
+    if (isPostedWith(node)) continue
+    const anchor = soleAnchor(node)
+    if (anchor && isShopLink(node)) shops.push(shopButton(anchor))
+    else if (anchor && hasImage(anchor)) {
+      images.push(anchor)
+      // 画像と商品名が 1 つのリンクに入っている箱がある（移行時に
+      // 改行で連結された）。商品名を別に持たないときは、その文字を使う
+      const caption = textOf(anchor).trim()
+      if (!title && caption) {
+        title = { ...anchor, children: [text(caption)] }
+        images[images.length - 1] = {
+          ...anchor,
+          children: anchor.children.filter((child) => hasImage(child)),
+        }
+      }
+    } else if (anchor && !title) title = anchor
+    else if (isPlainText(node)) meta.push(textOf(node).trim())
+    // 想定外の段落は落とさず、箱の上段にそのまま残す
+    else if (anchor) meta.push(textOf(anchor).trim())
+  }
+  if (shops.length === 0) return null
+
+  const textPart: ElementContent[] = []
+  if (title) textPart.push(el('p', 'product-name', [title]))
+  const metaText = meta.filter(Boolean).join(' ')
+  if (metaText) textPart.push(el('p', 'product-meta', [text(metaText)]))
+
+  const head: ElementContent[] = []
+  // 同じ商品の画像が大小 2 つ並ぶ箱があるので、先頭の 1 枚だけ使う
+  if (images[0]) head.push(el('p', 'product-image', [images[0]]))
+  if (textPart.length > 0) head.push(el('div', 'product-text', textPart))
+
+  return [
+    ...(head.length > 0 ? [el('div', 'product-head', head)] : []),
+    el('ul', 'shops', shops),
+  ]
+}
+
+const wrap = (nodes: RootContent[]): Element => {
   // Doctype は Root 直下にしか現れず、ここへ来る並びには含まれない。
   // 型の上では RootContent に含まれるので、明示的に取り除いておく
-  children: nodes.filter(
-    (node): node is ElementContent => node.type !== 'doctype'
-  ),
-})
+  const children = nodes.filter(
+    (node): node is ElementContent => node.type !== 'doctype' && !isBlank(node)
+  )
+  const rebuilt = rebuild(children)
+  return {
+    type: 'element',
+    tagName: 'div',
+    properties: {
+      className: rebuilt
+        ? ['product-box', 'product-link-box']
+        : ['product-box'],
+    },
+    children: rebuilt ?? children,
+  }
+}
 
 const replaceRange = (
   children: RootContent[],

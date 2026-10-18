@@ -1,5 +1,8 @@
 ---
 import { buildProductLinks } from '../../lib/affiliate.ts'
+// アーカイブ記事のカエレバの箱（rehype-product-box）と見た目を共有するため、
+// scoped style ではなく共有のグローバル CSS にしてある
+import '../../styles/product-link-box.css'
 
 export interface Props {
   productName: string
@@ -34,81 +37,3 @@ const links = buildProductLinks(productName)
     }
   </ul>
 </div>
-
-<style>
-  .product-link-box {
-    box-sizing: border-box;
-    margin: 0.8rem auto;
-    padding: 14px 12px;
-    width: 100%;
-    max-width: 100%;
-    border: 1px solid rgba(55, 53, 47, 0.16);
-    border-radius: 3px;
-    background: rgba(235, 236, 237, 0.35);
-  }
-  .product-name {
-    margin: 0 0 10px;
-    font-size: 1rem;
-    font-weight: 700;
-    line-height: 1.5rem;
-    color: var(--fg);
-    /* 型番のような長い連続英数字でもボックスをはみ出させない */
-    overflow-wrap: anywhere;
-  }
-  .shops {
-    display: grid;
-    /* スマホでも 3 列のまま。2 列にすると 3 つ目だけが下の段に余って不揃いになる。
-       ボタンは 3 つだけなので、狭い画面でもラベルの折り返しで収まる */
-    grid-template-columns: repeat(3, 1fr);
-    /* ラベルが折り返した行だけ高くなって不揃いに見えるのを防ぐ。
-       狭い画面では、幅によって 2 行になるボタンと 1 行のボタンが混ざるため */
-    grid-auto-rows: 1fr;
-    gap: 8px;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-  /* grid の子はデフォルトで min-width:auto のため、中身が縮まずに
-     行全体を押し広げて横スクロールを生む。0 にして折り返させる */
-  .shops > li {
-    min-width: 0;
-  }
-  /* 背景色は link.color から --shop-color として流し込まれる。
-     値の出どころは affiliate.ts のコメント参照（MyLinkBox の実測値）。
-     角丸 10px / 文字 13px / 白文字も同じく MyLinkBox に合わせている */
-  .shops > li > a {
-    display: flex;
-    /* ショップ名と「で探す」を別の要素にしてあり、収まらないときは
-       その間で改行する。「楽天市場で探 / す」のような切れ方を避けるため */
-    flex-wrap: wrap;
-    align-items: center;
-    align-content: center;
-    justify-content: center;
-    box-sizing: border-box;
-    width: 100%;
-    /* grid-auto-rows: 1fr が決めた行の高さいっぱいに広げる */
-    height: 100%;
-    min-height: 40px;
-    padding: 6px 4px;
-    border: none;
-    border-radius: 10px;
-    background: var(--shop-color);
-    color: #fff;
-    font-size: 13px;
-    line-height: 1.3;
-    text-align: center;
-    text-decoration: none;
-    /* ボタン幅より長いショップ名でも、単語の途中で折り返して収める。
-       これが無いと狭い画面でボタンが横に溢れる */
-    overflow-wrap: anywhere;
-  }
-  /* flex の子は min-width:auto だと縮まず、ボタンの幅を超えてはみ出す */
-  .shops > li > a > span {
-    min-width: 0;
-  }
-  .shops > li > a:hover {
-    /* 色はショップごとに違うので、暗くするのではなく全体を少し透かす。
-       どの背景色でも同じ見え方になる */
-    opacity: 0.85;
-  }
-</style>
