@@ -1,6 +1,10 @@
 ---
 import type { Post } from '../lib/interfaces.ts'
-import { getIconImageURL, getPostLink } from '../lib/blog-helpers.ts'
+import {
+  getDateStr,
+  getIconImageURL,
+  getPostLink,
+} from '../lib/blog-helpers.ts'
 
 export interface Props {
   heading: string
@@ -42,23 +46,23 @@ const iconImageURLs = new Map<string, string | undefined>(
       <ul>
         {posts.map((post: Post) => (
           <li>
-            <a
-              href={getPostLink(post.Slug)}
-              title={`${
-                post.Icon?.Type === 'emoji' ? post.Icon.Emoji : ''
-              }${post.Title}`}
-            >
-              {post.Icon && post.Icon.Type === 'emoji' ? (
-                <>
-                  <span>{post.Icon.Emoji}</span>{post.Title}
-                </>
-              ) : iconImageURLs.get(post.PageId) ? (
-                <>
-                  <img src={iconImageURLs.get(post.PageId)} alt="" />{post.Title}
-                </>
-              ) : (
-                post.Title
+            <a href={getPostLink(post.Slug)}>
+              {post.Date && (
+                <time datetime={post.Date}>{getDateStr(post.Date)}</time>
               )}
+              <span class="title">
+                {post.Icon && post.Icon.Type === 'emoji' ? (
+                  <>
+                    <span>{post.Icon.Emoji}</span>{post.Title}
+                  </>
+                ) : iconImageURLs.get(post.PageId) ? (
+                  <>
+                    <img src={iconImageURLs.get(post.PageId)} alt="" />{post.Title}
+                  </>
+                ) : (
+                  post.Title
+                )}
+              </span>
             </a>
           </li>
         ))}
@@ -68,8 +72,6 @@ const iconImageURLs = new Map<string, string | undefined>(
 }
 
 <style>
-  .blog-posts-link {
-  }
   .blog-posts-link h2 {
     margin: 0;
     padding-left: 0.4rem;
@@ -82,28 +84,44 @@ const iconImageURLs = new Map<string, string | undefined>(
     margin-top: 0.4rem;
     margin-block-end: 1rem;
   }
-  .blog-posts-link ul li {
+  /* 項目の間に線を引く。線が無いと、折り返したタイトルの 2 行目と
+     次の記事の 1 行目の区別が付かない */
+  .blog-posts-link ul li + li {
+    border-top: 1px solid rgba(55, 53, 47, 0.12);
   }
   .blog-posts-link ul li a {
     display: block;
     border-radius: var(--radius);
-    padding: 0.4rem 0.4rem;
-    line-height: 1.2rem;
+    padding: 0.5rem 0.4rem;
     color: inherit;
+    text-decoration: none;
+  }
+  /* 以前は 1 行に収めて末尾を「…」で切っていたが、スマホでは
+     タイトルの半分ほどしか読めず、何の記事か分からなかった。
+     全文を折り返して出す */
+  .blog-posts-link ul li a .title {
+    display: block;
     font-size: 0.95rem;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+  }
+  /* 日付があると「記事の一覧」だと一目で分かる */
+  .blog-posts-link ul li a time {
+    display: block;
+    margin-bottom: 0.15rem;
+    color: #777;
+    font-size: 0.75rem;
+    line-height: 1.2;
   }
   .blog-posts-link ul li a:hover {
     background-color: #ddd;
   }
-  .blog-posts-link ul li a span,
-  .blog-posts-link ul li a img {
+  .blog-posts-link ul li a .title span,
+  .blog-posts-link ul li a .title img {
     display: inline-block;
     margin-right: 0.2rem;
   }
-  .blog-posts-link ul li a img {
+  .blog-posts-link ul li a .title img {
     width: 1.25rem;
     height: 1.25rem;
     vertical-align: sub;
