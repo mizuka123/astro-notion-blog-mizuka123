@@ -57,8 +57,9 @@ interface ArchiveLayoutFrontmatter {
   // sitemap からは astro.config.mjs の isIndexablePage が HTML の
   // robots を見て自動で外すので、ここで別に指定する必要は無い
   noindex?: boolean
-  // 記事側には書かれていない。remark-archive-description が本文から作って
-  // file.data.astro.frontmatter に入れたものを受け取る
+  // 通常は記事側に書かず、remark-archive-description が本文から作って
+  // file.data.astro.frontmatter に入れたものを受け取る。検索結果での
+  // 見え方を直したい記事だけ frontmatter に手で書く（書けばそちらが優先）
   description?: string
   // これも記事側には書かれていない。remark-archive-images が本文の
   // /archive/images/ の画像 URL を出現順に入れたものを受け取る
