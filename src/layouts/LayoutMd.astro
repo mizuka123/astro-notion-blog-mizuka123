@@ -47,6 +47,14 @@ interface ArchiveLayoutFrontmatter {
   // 兼ねる。全 609 件が持っているので、アーカイブ記事は例外なく JSON-LD が付く
   date: string
   coverImage?: string
+  // true の記事だけ robots に noindex を出す。中身が薄く検索からの
+  // 流入も無い記事が多いと、Google がサイト全体を低く見て、需要の
+  // ある記事まで載せなくなる（Search Console で 865 件が未登録）。
+  // そうした記事を検索結果から外すための印。ページは残し、
+  // /archive/ やカテゴリーの一覧からのリンクもそのままにする。
+  // sitemap からは astro.config.mjs の isIndexablePage が HTML の
+  // robots を見て自動で外すので、ここで別に指定する必要は無い
+  noindex?: boolean
   // 記事側には書かれていない。remark-archive-description が本文から作って
   // file.data.astro.frontmatter に入れたものを受け取る
   description?: string
@@ -131,6 +139,7 @@ const post: Pick<Post, 'Date' | 'Title'> = {
       ogImage={ogImage}
       articleImage={articleImage}
       articleDate={frontmatter.date}
+      noindex={frontmatter.noindex === true}
     />
   </head>
   <body>
