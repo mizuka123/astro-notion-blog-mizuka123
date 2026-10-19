@@ -25,6 +25,8 @@ import SiteHead from '../components/SiteHead.astro'
 import PostDate from '../components/PostDate.astro'
 import BlogPostsLink from '../components/BlogPostsLink.astro'
 import BlogTagsLink from '../components/BlogTagsLink.astro'
+import RelatedPosts from '../components/RelatedPosts.astro'
+import { getRelatedArchivePosts } from '../lib/archive-related'
 // 検索ボタンとモーダル。Layout.astro には前からあったが、こちらには
 // 無かったため、アーカイブ 609 ページからは検索を開く手段が無かった。
 // 置き場所も Layout.astro に合わせてある（aside の先頭とフッター直後）。
@@ -49,6 +51,9 @@ interface ArchiveLayoutFrontmatter {
   // 兼ねる。全 609 件が持っているので、アーカイブ記事は例外なく JSON-LD が付く
   date: string
   coverImage?: string
+  // 関連記事の選定（src/lib/archive-related.ts）にだけ使う
+  categories?: string[]
+  tags?: string[]
   // true の記事だけ robots に noindex を出す。中身が薄く検索からの
   // 流入も無い記事が多いと、Google がサイト全体を低く見て、需要の
   // ある記事まで載せなくなる（Search Console で 865 件が未登録）。
@@ -121,6 +126,14 @@ const ogImage = ogImageProp || toAbsolute(archivePaths.ogImage)
 const articleImage = ogImageProp || toAbsolute(archivePaths.jsonLdImage)
 
 const database = await getDatabase()
+
+// 本文の直後に出す関連記事（選び方は src/lib/archive-related.ts）
+const relatedPosts = getRelatedArchivePosts(
+  path ?? '',
+  frontmatter.tags,
+  frontmatter.categories,
+  frontmatter.date
+).map((p) => ({ title: p.title, href: getNavLink(p.url), date: p.date }))
 
 const { coverImageURL, customIconURL } = getDatabaseImageURLs(database)
 
@@ -211,7 +224,9 @@ const post: Pick<Post, 'Date' | 'Title'> = {
             <h1 class="archive-title">{post.Title}</h1>
 
             <slot />
-          
+
+            <RelatedPosts posts={relatedPosts} />
+
             <footer>
               <div>
                 <span>Powered by</span>

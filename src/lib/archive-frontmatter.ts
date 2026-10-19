@@ -61,6 +61,8 @@ export interface ArchiveFrontmatter {
   title: string
   date: string
   draft?: boolean
+  // 中身が薄く検索から外した記事（LayoutMd.astro が robots に noindex を出す）
+  noindex?: boolean
   categories?: string[]
   tags?: string[]
 }
