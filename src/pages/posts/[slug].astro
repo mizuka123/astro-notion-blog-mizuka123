@@ -17,6 +17,7 @@ import {
   extractTargetBlocks,
   ogImageUrlPath,
   ogImageLocalPath,
+  getPostLink,
 } from '../../lib/blog-helpers.ts'
 import { descriptionFromBlocks } from '../../lib/notion-description.ts'
 import { hasEquation } from '../../lib/notion-equation.ts'
@@ -28,6 +29,7 @@ import PostBody from '../../components/PostBody.astro'
 import PostRelativeLink from '../../components/PostRelativeLink.astro'
 import BlogPostsLink from '../../components/BlogPostsLink.astro'
 import BlogTagsLink from '../../components/BlogTagsLink.astro'
+import RelatedPosts from '../../components/RelatedPosts.astro'
 import styles from '../../styles/blog.module.css'
 
 export async function getStaticPaths() {
@@ -105,6 +107,13 @@ await downloadFiles(`posts/${slug}`, [...fileUrls, ...calloutIconUrls], {
   shouldResize: (url) => imageUrls.has(url),
 })
 
+// 同じタグの記事は、サイドバーのほかに本文の直後にも出す。スマホでは
+// サイドバーが本文の下（タグ一覧などの後ろ）に回り、読み終えた位置から
+// 次の記事が見えなかった
+const sameTagPosts = postsHavingSameTag.filter(
+  (p: interfaces.Post) => p.Slug !== post.Slug
+)
+
 const currentPostIndex = allPosts.findIndex((post) => post.Slug === slug)
 const prevPost = allPosts[currentPostIndex + 1]
 const nextPost = allPosts[currentPostIndex - 1]
@@ -168,6 +177,13 @@ if (post.FeaturedImage && post.FeaturedImage.Url) {
       <PostTitle post={post} enableLink={false} isPageHeading />
       <PostBody blocks={blocks} />
       <PostTags post={post} />
+      <RelatedPosts
+        posts={sameTagPosts.map((p: interfaces.Post) => ({
+          title: p.Title,
+          href: getPostLink(p.Slug),
+          date: p.Date,
+        }))}
+      />
 
       <footer>
         <PostRelativeLink prevPost={prevPost} nextPost={nextPost} />
@@ -178,9 +194,7 @@ if (post.FeaturedImage && post.FeaturedImage.Url) {
   <Fragment slot="aside">
     <BlogPostsLink
       heading="同じタグの記事"
-      posts={postsHavingSameTag.filter(
-        (p: interfaces.Post) => p.Slug !== post.Slug
-      )}
+      posts={sameTagPosts}
     />
     <BlogPostsLink heading="おすすめ記事" posts={rankedPosts} />
     <BlogPostsLink heading="最新記事" posts={recentPosts} />
