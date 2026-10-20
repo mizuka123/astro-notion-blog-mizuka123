@@ -1,9 +1,11 @@
 ---
+import fs from 'node:fs'
 import type { MarkdownLayoutProps } from 'astro'
 import type { Post } from '../lib/interfaces'
 import { PUBLIC_GA_TRACKING_ID, ENABLE_LIGHTBOX } from '../server-constants'
 import {
   getPosts,
+  getAllPosts,
   getRankedPosts,
   getAllTags,
   getDatabase,
@@ -13,6 +15,9 @@ import {
   getStaticFilePath,
   getDatabaseImageURLs,
   stripBasePath,
+  getPostLink,
+  ogImageLocalPath,
+  ogImageUrlPath,
 } from '../lib/blog-helpers'
 import { archiveImages } from '../lib/archive-og-image'
 import { sharedArchiveImageNames } from '../lib/archive-shared-images'
@@ -81,10 +86,11 @@ export type Props = MarkdownLayoutProps<ArchiveLayoutFrontmatter> & {
 }
 
 const { frontmatter } = Astro.props
-const [rankedPosts, tags, recentPosts] = await Promise.all([
+const [rankedPosts, tags, recentPosts, allPosts] = await Promise.all([
   getRankedPosts(),
   getAllTags(),
   getPosts(5),
+  getAllPosts(),
 ])
 
 // SiteHead に渡す path は「BASE_PATH を含まない生パス」であること
@@ -126,6 +132,37 @@ const ogImage = ogImageProp || toAbsolute(archivePaths.ogImage)
 const articleImage = ogImageProp || toAbsolute(archivePaths.jsonLdImage)
 
 const database = await getDatabase()
+
+// 関連記事の下に出す、最近の Notion の記事（カメラ・ガジェットのレビュー）。
+// 検索から人が来るのは古いアーカイブ記事だが、今も買える商品を扱って
+// いるのは最近の記事なので、そちらへの導線を置く。
+// カメラ系のカテゴリーの記事ではカメラのタグの記事を先に出す（並べ替えは
+// 安定ソートなので、それぞれの中では新しい順のまま）
+const REVIEW_TAGS = ['カメラ', 'ガジェット']
+const CAMERA_CATEGORIES = ['camera-lens', 'photographs', 'photographic-equipment']
+const isCameraArchive = (frontmatter.categories ?? []).some((c) =>
+  CAMERA_CATEGORIES.includes(c)
+)
+const hasTag = (p: Post, name: string) => p.Tags.some((t) => t.name === name)
+const thumbnail = (p: Post): string | undefined => {
+  if (!p.FeaturedImage?.Url) return undefined
+  const url = new URL(p.FeaturedImage.Url)
+  // og-image-generator が作った 1200x630 だけを使う。元画像は数 MB の
+  // ことがあり、一覧のサムネイルにそのまま載せると重い
+  return fs.existsSync(ogImageLocalPath(url)) ? ogImageUrlPath(url) : undefined
+}
+const recentReviews = allPosts
+  .filter((p) => REVIEW_TAGS.some((name) => hasTag(p, name)))
+  .sort((a, b) =>
+    isCameraArchive ? Number(hasTag(b, 'カメラ')) - Number(hasTag(a, 'カメラ')) : 0
+  )
+  .slice(0, 3)
+  .map((p) => ({
+    title: p.Title,
+    href: getPostLink(p.Slug),
+    date: p.Date,
+    image: thumbnail(p),
+  }))
 
 // 本文の直後に出す関連記事（選び方は src/lib/archive-related.ts）
 const relatedPosts = getRelatedArchivePosts(
@@ -226,6 +263,7 @@ const post: Pick<Post, 'Date' | 'Title'> = {
             <slot />
 
             <RelatedPosts posts={relatedPosts} />
+            <RelatedPosts heading="最近のレビュー記事" posts={recentReviews} />
 
             <footer>
               <div>
