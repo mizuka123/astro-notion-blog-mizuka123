@@ -1,34 +1,50 @@
 ---
 import { getDateStr } from '../lib/blog-helpers.ts'
 
-// 記事本文の直後に出す「関連記事」。アーカイブ記事（LayoutMd.astro）と
-// Notion の記事（pages/posts/[slug].astro）の両方で使うので、
-// 記事の型ではなく表示に要る 3 つだけを受け取る。href は BASE_PATH 込み
+// 記事本文の直後に出す記事の一覧（「関連記事」など）。アーカイブ記事
+// （LayoutMd.astro）と Notion の記事（pages/posts/[slug].astro）の両方で
+// 使うので、記事の型ではなく表示に要るものだけを受け取る。
+// href と image は BASE_PATH 込み
 export interface RelatedPost {
   title: string
   href: string
   date?: string
+  // サムネイル。1200x630 の OGP 画像を想定して 16:9 前後の枠に収める
+  image?: string
 }
 
 export interface Props {
+  heading?: string
   posts: RelatedPost[]
 }
 
-const { posts } = Astro.props
+const { heading = '関連記事', posts } = Astro.props
 ---
 
 {
   posts.length > 0 && (
     <section class="related-posts">
-      <h2>関連記事</h2>
+      <h2>{heading}</h2>
       <ul>
         {posts.map((post) => (
           <li>
-            <a href={post.href}>
-              <span class="title">{post.title}</span>
-              {post.date && (
-                <time datetime={post.date}>{getDateStr(post.date)}</time>
+            <a href={post.href} class={post.image ? 'has-image' : undefined}>
+              {post.image && (
+                <img
+                  src={post.image}
+                  alt=""
+                  width="1200"
+                  height="630"
+                  loading="lazy"
+                  decoding="async"
+                />
               )}
+              <span class="text">
+                <span class="title">{post.title}</span>
+                {post.date && (
+                  <time datetime={post.date}>{getDateStr(post.date)}</time>
+                )}
+              </span>
             </a>
           </li>
         ))}
@@ -43,6 +59,9 @@ const { posts } = Astro.props
      よう、すべて .related-posts の下に書き、余白も明示する */
   .related-posts {
     margin: 2.5rem 0 1.5rem;
+  }
+  .related-posts + .related-posts {
+    margin-top: 1.5rem;
   }
   .related-posts h2 {
     margin: 0 0 0.6rem;
@@ -63,6 +82,23 @@ const { posts } = Astro.props
     padding: 0.7rem 0.4rem;
     color: inherit;
     text-decoration: none;
+  }
+  .related-posts a.has-image {
+    display: flex;
+    gap: 0.8rem;
+    align-items: center;
+  }
+  .related-posts img {
+    flex: none;
+    width: 120px;
+    height: auto;
+    aspect-ratio: 1200 / 630;
+    object-fit: cover;
+    border-radius: 4px;
+  }
+  .related-posts .text {
+    display: block;
+    min-width: 0;
   }
   .related-posts a:hover {
     background: rgba(55, 53, 47, 0.04);
